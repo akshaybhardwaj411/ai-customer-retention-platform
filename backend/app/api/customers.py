@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.customer import Customer
+from app.services.customer_service import create_customer
 
 
 router = APIRouter(
@@ -21,19 +21,16 @@ class CustomerCreate(BaseModel):
 
 
 @router.post("/")
-def create_customer(
+def create_customer_endpoint(
     data: CustomerCreate,
     db: Session = Depends(get_db),
 ):
-    customer = Customer(
+    customer = create_customer(
+        db=db,
         organization_id=data.organization_id,
         name=data.name,
         email=data.email,
     )
-
-    db.add(customer)
-    db.commit()
-    db.refresh(customer)
 
     return {
         "id": str(customer.id),
