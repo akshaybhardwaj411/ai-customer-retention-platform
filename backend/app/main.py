@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.actions import router as actions_router
 from app.api.customer_360 import router as customer_360_router
 from app.api.customers import router as customers_router
 from app.api.organizations import router as organizations_router
@@ -16,6 +17,7 @@ app.include_router(organizations_router)
 app.include_router(customers_router)
 app.include_router(customer_360_router)
 app.include_router(risk_router)
+app.include_router(actions_router)
 
 
 @app.get("/")
