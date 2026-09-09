@@ -7,6 +7,7 @@ from app.api.customers import router as customers_router
 from app.api.organizations import router as organizations_router
 from app.api.recommendations import router as recommendations_router
 from app.api.risk import router as risk_router
+from app.api.risk_summary import router as risk_summary_router
 
 
 app = FastAPI(
@@ -19,6 +20,7 @@ app.include_router(organizations_router)
 app.include_router(customers_router)
 app.include_router(customer_360_router)
 app.include_router(risk_router)
+app.include_router(risk_summary_router)
 app.include_router(actions_router)
 app.include_router(action_center_router)
 app.include_router(recommendations_router)
