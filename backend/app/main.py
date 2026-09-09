@@ -5,6 +5,7 @@ from app.api.actions import router as actions_router
 from app.api.customer_360 import router as customer_360_router
 from app.api.customers import router as customers_router
 from app.api.organizations import router as organizations_router
+from app.api.recommendations import router as recommendations_router
 from app.api.risk import router as risk_router
 
 
@@ -20,6 +21,7 @@ app.include_router(customer_360_router)
 app.include_router(risk_router)
 app.include_router(actions_router)
 app.include_router(action_center_router)
+app.include_router(recommendations_router)
 
 
 @app.get("/")
