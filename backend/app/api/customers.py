@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.customer import Customer
 from app.services.customer_service import create_customer
 
 
@@ -38,3 +39,24 @@ def create_customer_endpoint(
         "name": customer.name,
         "email": customer.email,
     }
+
+
+@router.get("/")
+def list_customers(
+    organization_id: UUID,
+    db: Session = Depends(get_db),
+):
+    customers = (
+        db.query(Customer)
+        .filter(Customer.organization_id == organization_id)
+        .all()
+    )
+
+    return [
+        {
+            "id": str(customer.id),
+            "name": customer.name,
+            "email": customer.email,
+        }
+        for customer in customers
+    ]
