@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.action_center import router as action_center_router
 from app.api.actions import router as actions_router
 from app.api.customer_360 import router as customer_360_router
 from app.api.customers import router as customers_router
@@ -18,6 +19,7 @@ app.include_router(customers_router)
 app.include_router(customer_360_router)
 app.include_router(risk_router)
 app.include_router(actions_router)
+app.include_router(action_center_router)
 
 
 @app.get("/")
