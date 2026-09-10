@@ -20,6 +20,9 @@ export default function ImportMappingPage() {
   const [error, setError] =
     useState("");
 
+  const [loading, setLoading] =
+    useState(false);
+
 
   useEffect(() => {
     const storedPreview =
@@ -35,10 +38,9 @@ export default function ImportMappingPage() {
     }
 
     try {
-      const parsedPreview =
-        JSON.parse(storedPreview);
-
-      setPreview(parsedPreview);
+      setPreview(
+        JSON.parse(storedPreview),
+      );
     } catch {
       setError(
         "Unable to read the CSV preview.",
@@ -47,14 +49,111 @@ export default function ImportMappingPage() {
   }, []);
 
 
-  function continueToActionCenter() {
-    sessionStorage.removeItem(
-      "import_preview",
-    );
+  async function importCustomers() {
+    const organizationId =
+      localStorage.getItem(
+        "organization_id",
+      );
 
-    router.push(
-      "/action-center",
-    );
+    const base64File =
+      sessionStorage.getItem(
+        "import_file",
+      );
+
+    const fileName =
+      sessionStorage.getItem(
+        "import_file_name",
+      ) || "customers.csv";
+
+    if (!organizationId || !base64File) {
+      setError(
+        "Import information is missing. Please upload the CSV again.",
+      );
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const base64Data =
+        base64File.split(",")[1];
+
+      const binaryString =
+        window.atob(base64Data);
+
+      const bytes = new Uint8Array(
+        binaryString.length,
+      );
+
+      for (
+        let index = 0;
+        index < binaryString.length;
+        index++
+      ) {
+        bytes[index] =
+          binaryString.charCodeAt(index);
+      }
+
+      const file = new File(
+        [bytes],
+        fileName,
+        {
+          type: "text/csv",
+        },
+      );
+
+      const formData = new FormData();
+
+      formData.append(
+        "file",
+        file,
+      );
+
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:8000";
+
+      const response = await fetch(
+        `${apiUrl}/imports/customers?organization_id=${encodeURIComponent(
+          organizationId,
+        )}`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await response.text(),
+        );
+      }
+
+      sessionStorage.removeItem(
+        "import_file",
+      );
+
+      sessionStorage.removeItem(
+        "import_file_name",
+      );
+
+      sessionStorage.removeItem(
+        "import_preview",
+      );
+
+      router.push(
+        "/action-center",
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Customer import failed.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
 
@@ -85,7 +184,7 @@ export default function ImportMappingPage() {
           }}
         >
           Review the detected columns before
-          continuing.
+          importing your customers.
         </p>
 
         {error && (
@@ -172,9 +271,8 @@ export default function ImportMappingPage() {
 
             <button
               type="button"
-              onClick={
-                continueToActionCenter
-              }
+              onClick={importCustomers}
+              disabled={loading}
               style={{
                 marginTop: "28px",
                 padding: "12px 18px",
@@ -186,7 +284,9 @@ export default function ImportMappingPage() {
                 cursor: "pointer",
               }}
             >
-              Continue
+              {loading
+                ? "Importing..."
+                : "Import Customers"}
             </button>
           </>
         )}
