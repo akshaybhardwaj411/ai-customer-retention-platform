@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.action_center import router as action_center_router
 from app.api.actions import router as actions_router
@@ -17,6 +18,7 @@ from app.api.outcomes import router as outcomes_router
 from app.api.recommendations import router as recommendations_router
 from app.api.risk import router as risk_router
 from app.api.risk_summary import router as risk_summary_router
+from app.db.session import get_db
 
 
 app = FastAPI(
@@ -70,3 +72,23 @@ def health():
         "service": "retention-api",
         "version": "1.0.0",
     }
+
+
+@app.get("/health/database")
+def database_health():
+    db = next(get_db())
+
+    try:
+        db.execute(text("SELECT 1"))
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+        }
+    except Exception:
+        return {
+            "status": "unhealthy",
+            "database": "unavailable",
+        }
+    finally:
+        db.close()
