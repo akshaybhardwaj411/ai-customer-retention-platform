@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.customer import Customer
 from app.models.customer_event import CustomerEvent
+from app.models.prediction import Prediction
 
 
 router = APIRouter(
@@ -31,6 +32,13 @@ def get_customer_360(
             detail="Customer not found",
         )
 
+    prediction = (
+        db.query(Prediction)
+        .filter(Prediction.customer_id == customer_id)
+        .order_by(Prediction.created_at.desc())
+        .first()
+    )
+
     events = (
         db.query(CustomerEvent)
         .filter(CustomerEvent.customer_id == customer_id)
@@ -46,8 +54,14 @@ def get_customer_360(
             "email": customer.email,
         },
         "risk": {
-            "risk_level": "unknown",
-            "churn_probability": None,
+            "risk_level": prediction.risk_level
+            if prediction
+            else "unknown",
+            "churn_probability": float(
+                prediction.churn_probability
+            )
+            if prediction and prediction.churn_probability is not None
+            else None,
         },
         "health": {
             "status": "unknown",
