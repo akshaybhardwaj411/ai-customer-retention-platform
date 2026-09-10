@@ -5,6 +5,7 @@ from app.api.actions import router as actions_router
 from app.api.customer_360 import router as customer_360_router
 from app.api.customer_events import router as customer_events_router
 from app.api.customers import router as customers_router
+from app.api.impact import router as impact_router
 from app.api.import_preview import router as import_preview_router
 from app.api.import_validation import router as import_validation_router
 from app.api.imports import router as imports_router
@@ -35,6 +36,7 @@ app.include_router(recommendations_router)
 app.include_router(actions_router)
 app.include_router(action_center_router)
 app.include_router(outcomes_router)
+app.include_router(impact_router)
 app.include_router(imports_router)
 app.include_router(import_preview_router)
 app.include_router(import_validation_router)
