@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.customer import Customer
+from app.models.customer_event import CustomerEvent
 
 
 router = APIRouter(
@@ -30,6 +31,13 @@ def get_customer_360(
             detail="Customer not found",
         )
 
+    events = (
+        db.query(CustomerEvent)
+        .filter(CustomerEvent.customer_id == customer_id)
+        .order_by(CustomerEvent.created_at.desc())
+        .all()
+    )
+
     return {
         "customer": {
             "id": str(customer.id),
@@ -46,4 +54,13 @@ def get_customer_360(
         },
         "insights": [],
         "recommended_actions": [],
+        "timeline": [
+            {
+                "id": str(event.id),
+                "event_type": event.event_type,
+                "description": event.description,
+                "created_at": event.created_at,
+            }
+            for event in events
+        ],
     }
