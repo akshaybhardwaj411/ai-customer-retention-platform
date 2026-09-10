@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.action_center import router as action_center_router
 from app.api.actions import router as actions_router
 from app.api.customer_360 import router as customer_360_router
+from app.api.customer_events import router as customer_events_router
 from app.api.customers import router as customers_router
 from app.api.import_preview import router as import_preview_router
 from app.api.import_validation import router as import_validation_router
@@ -22,6 +23,7 @@ app = FastAPI(
 app.include_router(organizations_router)
 app.include_router(customers_router)
 app.include_router(customer_360_router)
+app.include_router(customer_events_router)
 app.include_router(risk_router)
 app.include_router(risk_summary_router)
 app.include_router(actions_router)
