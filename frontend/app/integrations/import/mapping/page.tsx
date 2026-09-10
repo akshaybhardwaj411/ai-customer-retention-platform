@@ -22,38 +22,40 @@ export default function ImportMappingPage() {
 
 
   useEffect(() => {
-    async function loadPreview() {
-      const organizationId =
-        localStorage.getItem(
-          "organization_id",
-        );
-
-      if (!organizationId) {
-        setError(
-          "Organization information is missing.",
-        );
-        return;
-      }
-
-      const storedFileName =
-        localStorage.getItem(
-          "import_file_name",
-        );
-
-      if (!storedFileName) {
-        setError(
-          "No import file was selected.",
-        );
-        return;
-      }
-
-      setError(
-        "Please upload the CSV again to preview it.",
+    const storedPreview =
+      sessionStorage.getItem(
+        "import_preview",
       );
+
+    if (!storedPreview) {
+      setError(
+        "No CSV preview is available. Please upload a file again.",
+      );
+      return;
     }
 
-    loadPreview();
+    try {
+      const parsedPreview =
+        JSON.parse(storedPreview);
+
+      setPreview(parsedPreview);
+    } catch {
+      setError(
+        "Unable to read the CSV preview.",
+      );
+    }
   }, []);
+
+
+  function continueToActionCenter() {
+    sessionStorage.removeItem(
+      "import_preview",
+    );
+
+    router.push(
+      "/action-center",
+    );
+  }
 
 
   return (
@@ -82,7 +84,7 @@ export default function ImportMappingPage() {
             color: "#64748b",
           }}
         >
-          Review your customer columns before
+          Review the detected columns before
           continuing.
         </p>
 
@@ -98,84 +100,96 @@ export default function ImportMappingPage() {
         )}
 
         {preview && (
-          <div
-            style={{
-              overflowX: "auto",
-              marginTop: "24px",
-            }}
-          >
-            <table
+          <>
+            <p
               style={{
-                width: "100%",
-                borderCollapse: "collapse",
+                marginTop: "24px",
+                fontWeight: 600,
               }}
             >
-              <thead>
-                <tr>
-                  {preview.columns.map(
-                    (column) => (
-                      <th
-                        key={column}
-                        style={{
-                          textAlign: "left",
-                          padding: "12px",
-                          borderBottom:
-                            "1px solid #e2e8f0",
-                        }}
-                      >
-                        {column}
-                      </th>
+              File: {preview.filename}
+            </p>
+
+            <div
+              style={{
+                overflowX: "auto",
+                marginTop: "20px",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                }}
+              >
+                <thead>
+                  <tr>
+                    {preview.columns.map(
+                      (column) => (
+                        <th
+                          key={column}
+                          style={{
+                            textAlign: "left",
+                            padding: "12px",
+                            borderBottom:
+                              "1px solid #e2e8f0",
+                            whiteSpace:
+                              "nowrap",
+                          }}
+                        >
+                          {column}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {preview.preview_rows.map(
+                    (row, index) => (
+                      <tr key={index}>
+                        {preview.columns.map(
+                          (column) => (
+                            <td
+                              key={column}
+                              style={{
+                                padding: "12px",
+                                borderBottom:
+                                  "1px solid #f1f5f9",
+                              }}
+                            >
+                              {row[column] ||
+                                ""}
+                            </td>
+                          ),
+                        )}
+                      </tr>
                     ),
                   )}
-                </tr>
-              </thead>
+                </tbody>
+              </table>
+            </div>
 
-              <tbody>
-                {preview.preview_rows.map(
-                  (row, index) => (
-                    <tr key={index}>
-                      {preview.columns.map(
-                        (column) => (
-                          <td
-                            key={column}
-                            style={{
-                              padding: "12px",
-                              borderBottom:
-                                "1px solid #f1f5f9",
-                            }}
-                          >
-                            {row[column]}
-                          </td>
-                        ),
-                      )}
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
+            <button
+              type="button"
+              onClick={
+                continueToActionCenter
+              }
+              style={{
+                marginTop: "28px",
+                padding: "12px 18px",
+                border: "none",
+                borderRadius: "8px",
+                background: "#2563eb",
+                color: "white",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Continue
+            </button>
+          </>
         )}
-
-        <button
-          type="button"
-          onClick={() =>
-            router.push(
-              "/action-center",
-            )
-          }
-          style={{
-            marginTop: "28px",
-            padding: "12px 18px",
-            border: "none",
-            borderRadius: "8px",
-            background: "#2563eb",
-            color: "white",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Continue
-        </button>
       </section>
     </main>
   );
