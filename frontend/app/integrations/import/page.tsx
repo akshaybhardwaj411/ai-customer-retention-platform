@@ -4,6 +4,40 @@ import { ChangeEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 
+function fileToBase64(
+  file: File,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = reader.result;
+
+      if (typeof result !== "string") {
+        reject(
+          new Error(
+            "Unable to read the selected file.",
+          ),
+        );
+        return;
+      }
+
+      resolve(result);
+    };
+
+    reader.onerror = () => {
+      reject(
+        new Error(
+          "Unable to read the selected file.",
+        ),
+      );
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+
 export default function ImportCustomersPage() {
   const router = useRouter();
 
@@ -51,12 +85,20 @@ export default function ImportCustomersPage() {
     setError("");
 
     try {
-      const formData = new FormData();
+      const base64File =
+        await fileToBase64(file);
 
-      formData.append(
-        "organization_id",
-        organizationId,
+      sessionStorage.setItem(
+        "import_file",
+        base64File,
       );
+
+      sessionStorage.setItem(
+        "import_file_name",
+        file.name,
+      );
+
+      const formData = new FormData();
 
       formData.append(
         "file",
@@ -67,9 +109,7 @@ export default function ImportCustomersPage() {
         `${
           process.env.NEXT_PUBLIC_API_URL ||
           "http://localhost:8000"
-        }/imports/customers?organization_id=${encodeURIComponent(
-          organizationId,
-        )}`,
+        }/imports/preview`,
         {
           method: "POST",
           body: formData,
@@ -82,6 +122,14 @@ export default function ImportCustomersPage() {
         );
       }
 
+      const preview =
+        await response.json();
+
+      sessionStorage.setItem(
+        "import_preview",
+        JSON.stringify(preview),
+      );
+
       router.push(
         "/integrations/import/mapping",
       );
@@ -89,7 +137,7 @@ export default function ImportCustomersPage() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Import failed.",
+          : "Unable to prepare the import.",
       );
     } finally {
       setLoading(false);
@@ -174,8 +222,8 @@ export default function ImportCustomersPage() {
           }}
         >
           {loading
-            ? "Uploading..."
-            : "Upload Customers"}
+            ? "Preparing..."
+            : "Preview Customers"}
         </button>
       </section>
     </main>
