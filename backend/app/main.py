@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.action_center import router as action_center_router
 from app.api.actions import router as actions_router
@@ -21,6 +22,17 @@ from app.api.risk_summary import router as risk_summary_router
 app = FastAPI(
     title="AI Customer Retention Platform API",
     version="1.0.0",
+)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
