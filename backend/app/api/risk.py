@@ -30,12 +30,16 @@ def get_customer_risk(
             "customer_id": str(customer_id),
             "churn_probability": None,
             "risk_level": "unknown",
+            "source": "not_available",
         }
 
     return {
         "customer_id": str(prediction.customer_id),
-        "churn_probability": float(prediction.churn_probability)
+        "churn_probability": float(
+            prediction.churn_probability
+        )
         if prediction.churn_probability is not None
         else None,
         "risk_level": prediction.risk_level,
+        "source": "prediction",
     }
