@@ -47,6 +47,7 @@ def root():
     return {
         "message": "AI Customer Retention Platform API",
         "status": "running",
+        "version": "1.0.0",
     }
 
 
@@ -54,4 +55,6 @@ def root():
 def health():
     return {
         "status": "healthy",
+        "service": "retention-api",
+        "version": "1.0.0",
     }
