@@ -3,30 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-
-type Customer360 = {
-  customer: {
-    id: string;
-    organization_id: string;
-    name: string;
-    email: string | null;
-  };
-  risk: {
-    risk_level: string;
-    churn_probability: number | null;
-  };
-  health: {
-    status: string;
-  };
-  insights: unknown[];
-  recommended_actions: unknown[];
-  timeline: {
-    id: string;
-    event_type: string;
-    description: string | null;
-    created_at: string;
-  }[];
-};
+import {
+  Customer360,
+  getCustomer360,
+} from "../../../lib/customer-360";
 
 
 export default function Customer360Page() {
@@ -48,25 +28,10 @@ export default function Customer360Page() {
   useEffect(() => {
     async function loadCustomer() {
       try {
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL ||
-          "http://localhost:8000";
-
-        const response =
-          await fetch(
-            `${apiUrl}/customer-360/${encodeURIComponent(
-              customerId,
-            )}`,
-          );
-
-        if (!response.ok) {
-          throw new Error(
-            await response.text(),
-          );
-        }
-
         const result =
-          await response.json();
+          await getCustomer360(
+            customerId,
+          );
 
         setData(result);
       } catch (requestError) {
@@ -263,8 +228,7 @@ export default function Customer360Page() {
                   <div
                     key={event.id}
                     style={{
-                      padding:
-                        "14px 0",
+                      padding: "14px 0",
                       borderBottom:
                         "1px solid #f1f5f9",
                     }}
@@ -275,8 +239,7 @@ export default function Customer360Page() {
 
                     <p
                       style={{
-                        margin:
-                          "6px 0",
+                        margin: "6px 0",
                         color: "#475569",
                       }}
                     >
