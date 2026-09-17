@@ -1,6 +1,5 @@
 import { apiRequest } from "./api";
 
-
 export type Customer360 = {
   customer: {
     id: string;
@@ -8,20 +7,15 @@ export type Customer360 = {
     name: string;
     email: string | null;
   };
-
   risk: {
     risk_level: string;
     churn_probability: number | null;
   };
-
   health: {
     status: string;
   };
-
   insights: unknown[];
-
   recommended_actions: unknown[];
-
   timeline: {
     id: string;
     event_type: string;
@@ -30,13 +24,15 @@ export type Customer360 = {
   }[];
 };
 
-
 export async function getCustomer360(
   customerId: string,
+  organizationId: string,
 ): Promise<Customer360> {
   return apiRequest<Customer360>(
     `/customer-360/${encodeURIComponent(
       customerId,
+    )}?organization_id=${encodeURIComponent(
+      organizationId,
     )}`,
   );
 }
