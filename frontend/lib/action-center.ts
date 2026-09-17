@@ -10,18 +10,23 @@ export type RetentionAction = {
 };
 
 
-export type ActionCenterResponse = {
-  total_actions: number;
-  actions: RetentionAction[];
-};
-
-
-export async function getActionCenter(
+export async function createRetentionAction(
   organizationId: string,
-): Promise<ActionCenterResponse> {
-  return apiRequest<ActionCenterResponse>(
-    `/action-center/?organization_id=${encodeURIComponent(
-      organizationId,
-    )}`,
+  customerId: string,
+  actionType: string,
+  recommendation?: string,
+): Promise<RetentionAction> {
+  return apiRequest<RetentionAction>(
+    "/actions/",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        organization_id: organizationId,
+        customer_id: customerId,
+        action_type: actionType,
+        recommendation:
+          recommendation || null,
+      }),
+    },
   );
 }
