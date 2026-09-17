@@ -8,6 +8,16 @@ import {
   getCustomer360,
 } from "../../../lib/customer-360";
 
+import {
+  CustomerInsight,
+  getCustomerInsight,
+} from "../../../lib/insights";
+
+import {
+  NextBestAction,
+  getNextBestAction,
+} from "../../../lib/next-best-action";
+
 
 export default function Customer360Page() {
   const params = useParams();
@@ -17,6 +27,12 @@ export default function Customer360Page() {
 
   const [data, setData] =
     useState<Customer360 | null>(null);
+
+  const [insight, setInsight] =
+    useState<CustomerInsight | null>(null);
+
+  const [nextAction, setNextAction] =
+    useState<NextBestAction | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -28,12 +44,19 @@ export default function Customer360Page() {
   useEffect(() => {
     async function loadCustomer() {
       try {
-        const result =
-          await getCustomer360(
-            customerId,
-          );
+        const [
+          customerData,
+          insightData,
+          actionData,
+        ] = await Promise.all([
+          getCustomer360(customerId),
+          getCustomerInsight(customerId),
+          getNextBestAction(customerId),
+        ]);
 
-        setData(result);
+        setData(customerData);
+        setInsight(insightData);
+        setNextAction(actionData);
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -129,80 +152,117 @@ export default function Customer360Page() {
             marginTop: "28px",
           }}
         >
-          <div
-            style={{
-              padding: "20px",
-              background: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "12px",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#64748b",
-              }}
-            >
-              Risk level
-            </p>
+          <InfoCard
+            label="Risk level"
+            value={data.risk.risk_level}
+          />
 
-            <h2>
-              {data.risk.risk_level}
-            </h2>
-          </div>
-
-          <div
-            style={{
-              padding: "20px",
-              background: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "12px",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#64748b",
-              }}
-            >
-              Churn probability
-            </p>
-
-            <h2>
-              {probability === null
+          <InfoCard
+            label="Churn probability"
+            value={
+              probability === null
                 ? "—"
                 : `${Math.round(
                     probability * 100,
-                  )}%`}
-            </h2>
-          </div>
+                  )}%`
+            }
+          />
 
-          <div
-            style={{
-              padding: "20px",
-              background: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "12px",
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: "#64748b",
-              }}
-            >
-              Customer health
-            </p>
-
-            <h2>
-              {data.health.status}
-            </h2>
-          </div>
+          <InfoCard
+            label="Customer health"
+            value={data.health.status}
+          />
         </div>
+
 
         <section
           style={{
             marginTop: "28px",
+            padding: "24px",
+            background: "white",
+            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
+          }}
+        >
+          <h2>
+            AI Insight
+          </h2>
+
+          <p
+            style={{
+              color: "#475569",
+              lineHeight: 1.6,
+            }}
+          >
+            {insight?.summary ||
+              "No AI insight available yet."}
+          </p>
+
+          {insight &&
+            insight.risk_factors.length >
+              0 && (
+              <>
+                <h3>
+                  Risk factors
+                </h3>
+
+                <ul>
+                  {insight.risk_factors.map(
+                    (factor) => (
+                      <li key={factor}>
+                        {factor}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </>
+            )}
+        </section>
+
+
+        <section
+          style={{
+            marginTop: "20px",
+            padding: "24px",
+            background: "white",
+            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
+          }}
+        >
+          <h2>
+            Next Best Action
+          </h2>
+
+          <h3>
+            {nextAction?.action ||
+              "No action available yet"}
+          </h3>
+
+          <p
+            style={{
+              color: "#475569",
+              lineHeight: 1.6,
+            }}
+          >
+            {nextAction?.reason ||
+              "There is currently no recommendation."}
+          </p>
+
+          {nextAction?.expected_value !==
+            null &&
+            nextAction?.expected_value !==
+              undefined && (
+              <p>
+                Expected value:{" "}
+                {nextAction.expected_value}
+              </p>
+            )}
+        </section>
+
+
+        <section
+          style={{
+            marginTop: "20px",
             padding: "24px",
             background: "white",
             border: "1px solid #e2e8f0",
@@ -264,5 +324,42 @@ export default function Customer360Page() {
         </section>
       </section>
     </main>
+  );
+}
+
+
+function InfoCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        padding: "20px",
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "12px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: "#64748b",
+        }}
+      >
+        {label}
+      </p>
+
+      <h2
+        style={{
+          marginBottom: 0,
+        }}
+      >
+        {value}
+      </h2>
+    </div>
   );
 }
