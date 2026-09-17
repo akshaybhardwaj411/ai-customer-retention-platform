@@ -22,7 +22,8 @@ def get_impact(
     total_actions = (
         db.query(ActionOutcome)
         .filter(
-            ActionOutcome.organization_id == organization_id
+            ActionOutcome.organization_id
+            == organization_id
         )
         .count()
     )
@@ -30,8 +31,10 @@ def get_impact(
     customers_saved = (
         db.query(ActionOutcome)
         .filter(
-            ActionOutcome.organization_id == organization_id,
-            ActionOutcome.outcome == "saved",
+            ActionOutcome.organization_id
+            == organization_id,
+            ActionOutcome.outcome
+            == "saved",
         )
         .count()
     )
@@ -39,12 +42,15 @@ def get_impact(
     revenue_saved = (
         db.query(
             func.coalesce(
-                func.sum(ActionOutcome.revenue_saved),
+                func.sum(
+                    ActionOutcome.revenue_saved
+                ),
                 0,
             )
         )
         .filter(
-            ActionOutcome.organization_id == organization_id
+            ActionOutcome.organization_id
+            == organization_id
         )
         .scalar()
     )
@@ -52,5 +58,7 @@ def get_impact(
     return {
         "total_actions": total_actions,
         "customers_saved": customers_saved,
-        "revenue_saved": float(revenue_saved),
+        "revenue_saved": float(
+            revenue_saved
+        ),
     }
