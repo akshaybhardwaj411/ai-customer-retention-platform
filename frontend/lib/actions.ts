@@ -1,6 +1,5 @@
 import { apiRequest } from "./api";
 
-
 export type RetentionAction = {
   id: string;
   customer_id: string;
@@ -8,7 +7,6 @@ export type RetentionAction = {
   status: string;
   recommendation: string | null;
 };
-
 
 export async function createRetentionAction(
   organizationId: string,
@@ -24,9 +22,19 @@ export async function createRetentionAction(
         organization_id: organizationId,
         customer_id: customerId,
         action_type: actionType,
-        recommendation:
-          recommendation || null,
+        recommendation: recommendation || null,
       }),
+    },
+  );
+}
+
+export async function executeRetentionAction(
+  actionId: string,
+): Promise<RetentionAction & { message: string }> {
+  return apiRequest<RetentionAction & { message: string }>(
+    `/actions/${encodeURIComponent(actionId)}/execute`,
+    {
+      method: "POST",
     },
   );
 }
