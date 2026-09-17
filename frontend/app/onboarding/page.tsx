@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import "./onboarding.css";
-import { apiRequest } from "../../lib/api";
+import { createOrganization } from "../../lib/organizations";
 
 
 export default function OnboardingPage() {
@@ -30,16 +30,9 @@ export default function OnboardingPage() {
 
     try {
       const organization =
-        await apiRequest<{
-          id: string;
-          name: string;
-          message: string;
-        }>("/organizations/", {
-          method: "POST",
-          body: JSON.stringify({
-            name: organizationName,
-          }),
-        });
+        await createOrganization(
+          organizationName,
+        );
 
       localStorage.setItem(
         "organization_id",
@@ -51,7 +44,9 @@ export default function OnboardingPage() {
         organization.name,
       );
 
-      router.push("/integrations/import");
+      router.push(
+        "/integrations/import",
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
