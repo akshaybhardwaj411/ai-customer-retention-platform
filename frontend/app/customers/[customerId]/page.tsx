@@ -1,29 +1,26 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import {
-  Customer360,
   getCustomer360,
+  Customer360,
 } from "../../../lib/customer-360";
-
 import {
-  CustomerInsight,
   getCustomerInsight,
+  CustomerInsight,
 } from "../../../lib/insights";
-
 import {
-  NextBestAction,
   getNextBestAction,
+  NextBestAction,
 } from "../../../lib/next-best-action";
 
 
 export default function Customer360Page() {
   const params = useParams();
-
-  const customerId =
-    params.customerId as string;
+  const customerId = String(params.customerId);
 
   const [data, setData] =
     useState<Customer360 | null>(null);
@@ -31,7 +28,7 @@ export default function Customer360Page() {
   const [insight, setInsight] =
     useState<CustomerInsight | null>(null);
 
-  const [nextAction, setNextAction] =
+  const [nextBestAction, setNextBestAction] =
     useState<NextBestAction | null>(null);
 
   const [loading, setLoading] =
@@ -43,20 +40,38 @@ export default function Customer360Page() {
 
   useEffect(() => {
     async function loadCustomer() {
+      const organizationId =
+        localStorage.getItem(
+          "organization_id",
+        );
+
+      if (!organizationId) {
+        setError(
+          "Organization not found.",
+        );
+        setLoading(false);
+        return;
+      }
+
       try {
         const [
-          customerData,
-          insightData,
-          actionData,
+          customer360,
+          customerInsight,
+          customerNextBestAction,
         ] = await Promise.all([
-          getCustomer360(customerId),
+          getCustomer360(
+            customerId,
+            organizationId,
+          ),
           getCustomerInsight(customerId),
           getNextBestAction(customerId),
         ]);
 
-        setData(customerData);
-        setInsight(insightData);
-        setNextAction(actionData);
+        setData(customer360);
+        setInsight(customerInsight);
+        setNextBestAction(
+          customerNextBestAction,
+        );
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -68,9 +83,7 @@ export default function Customer360Page() {
       }
     }
 
-    if (customerId) {
-      loadCustomer();
-    }
+    loadCustomer();
   }, [customerId]);
 
 
@@ -78,38 +91,38 @@ export default function Customer360Page() {
     return (
       <main
         style={{
-          padding: "40px 24px",
+          padding: "32px 24px",
         }}
       >
         <p>
-          Loading customer...
+          Loading Customer 360...
         </p>
       </main>
     );
   }
 
 
-  if (error) {
+  if (error || !data) {
     return (
       <main
         style={{
-          padding: "40px 24px",
+          padding: "32px 24px",
         }}
       >
-        <p
-          style={{
-            color: "#dc2626",
-          }}
-        >
-          {error}
+        <Link href="/customers">
+          ← Customers
+        </Link>
+
+        <h1>
+          Customer 360
+        </h1>
+
+        <p>
+          {error ||
+            "Customer information is unavailable."}
         </p>
       </main>
     );
-  }
-
-
-  if (!data) {
-    return null;
   }
 
 
@@ -126,10 +139,14 @@ export default function Customer360Page() {
     >
       <section
         style={{
-          maxWidth: "1000px",
+          maxWidth: "1100px",
           margin: "0 auto",
         }}
       >
+        <Link href="/customers">
+          ← Customers
+        </Link>
+
         <h1>
           {data.customer.name}
         </h1>
@@ -143,44 +160,50 @@ export default function Customer360Page() {
             "No email available"}
         </p>
 
+
         <div
           style={{
             display: "grid",
             gridTemplateColumns:
               "repeat(auto-fit, minmax(220px, 1fr))",
             gap: "16px",
-            marginTop: "28px",
+            marginTop: "24px",
           }}
         >
           <InfoCard
-            label="Risk level"
-            value={data.risk.risk_level}
-          />
-
-          <InfoCard
-            label="Churn probability"
+            title="Risk Level"
             value={
-              probability === null
-                ? "—"
-                : `${Math.round(
-                    probability * 100,
-                  )}%`
+              data.risk.risk_level
             }
           />
 
           <InfoCard
-            label="Customer health"
-            value={data.health.status}
+            title="Churn Probability"
+            value={
+              probability !== null
+                ? `${(
+                    probability * 100
+                  ).toFixed(1)}%`
+                : "Unavailable"
+            }
+          />
+
+          <InfoCard
+            title="Customer Health"
+            value={
+              data.health.status
+            }
           />
         </div>
 
 
         <section
           style={{
-            marginTop: "28px",
+            marginTop: "24px",
             padding: "24px",
             background: "white",
-            border: "1px solid #e2e8f0",
+            border:
+              "1px solid #e2e8f0",
             borderRadius: "12px",
           }}
         >
@@ -188,44 +211,47 @@ export default function Customer360Page() {
             AI Insight
           </h2>
 
-          <p
-            style={{
-              color: "#475569",
-              lineHeight: 1.6,
-            }}
-          >
+          <p>
             {insight?.summary ||
-              "No AI insight available yet."}
+              "No insight available."}
           </p>
 
-          {insight &&
-            insight.risk_factors.length >
-              0 && (
-              <>
-                <h3>
-                  Risk factors
-                </h3>
+          {insight?.risk_factors?.length ? (
+            <>
+              <h3>
+                Risk Factors
+              </h3>
 
-                <ul>
-                  {insight.risk_factors.map(
-                    (factor) => (
-                      <li key={factor}>
-                        {factor}
-                      </li>
-                    ),
-                  )}
-                </ul>
-              </>
-            )}
+              <ul>
+                {insight.risk_factors.map(
+                  (factor) => (
+                    <li key={factor}>
+                      {factor}
+                    </li>
+                  ),
+                )}
+              </ul>
+            </>
+          ) : (
+            <p
+              style={{
+                color: "#64748b",
+              }}
+            >
+              No specific risk factors
+              are available yet.
+            </p>
+          )}
         </section>
 
 
         <section
           style={{
-            marginTop: "20px",
+            marginTop: "24px",
             padding: "24px",
             background: "white",
-            border: "1px solid #e2e8f0",
+            border:
+              "1px solid #e2e8f0",
             borderRadius: "12px",
           }}
         >
@@ -233,44 +259,54 @@ export default function Customer360Page() {
             Next Best Action
           </h2>
 
-          <h3>
-            {nextAction?.action ||
-              "No action available yet"}
-          </h3>
-
-          <p
-            style={{
-              color: "#475569",
-              lineHeight: 1.6,
-            }}
-          >
-            {nextAction?.reason ||
-              "There is currently no recommendation."}
-          </p>
-
-          {nextAction?.expected_value !==
-            null &&
-            nextAction?.expected_value !==
-              undefined && (
+          {nextBestAction?.action ? (
+            <>
               <p>
-                Expected value:{" "}
-                {nextAction.expected_value}
+                <strong>
+                  {nextBestAction.action}
+                </strong>
               </p>
-            )}
+
+              <p>
+                {nextBestAction.reason ||
+                  "No reason provided."}
+              </p>
+
+              {nextBestAction.expected_value !==
+                null && (
+                <p>
+                  Expected value:{" "}
+                  {
+                    nextBestAction.expected_value
+                  }
+                </p>
+              )}
+            </>
+          ) : (
+            <p
+              style={{
+                color: "#64748b",
+              }}
+            >
+              No recommended action is
+              available yet.
+            </p>
+          )}
         </section>
 
 
         <section
           style={{
-            marginTop: "20px",
+            marginTop: "24px",
             padding: "24px",
             background: "white",
-            border: "1px solid #e2e8f0",
+            border:
+              "1px solid #e2e8f0",
             borderRadius: "12px",
           }}
         >
           <h2>
-            Timeline
+            Customer Timeline
           </h2>
 
           {data.timeline.length === 0 ? (
@@ -279,7 +315,7 @@ export default function Customer360Page() {
                 color: "#64748b",
               }}
             >
-              No customer events recorded yet.
+              No customer events recorded.
             </p>
           ) : (
             <div>
@@ -288,28 +324,25 @@ export default function Customer360Page() {
                   <div
                     key={event.id}
                     style={{
-                      padding: "14px 0",
+                      padding:
+                        "14px 0",
                       borderBottom:
-                        "1px solid #f1f5f9",
+                        "1px solid #e2e8f0",
                     }}
                   >
                     <strong>
                       {event.event_type}
                     </strong>
 
-                    <p
-                      style={{
-                        margin: "6px 0",
-                        color: "#475569",
-                      }}
-                    >
+                    <p>
                       {event.description ||
                         "No description"}
                     </p>
 
                     <small
                       style={{
-                        color: "#94a3b8",
+                        color:
+                          "#64748b",
                       }}
                     >
                       {new Date(
@@ -329,10 +362,10 @@ export default function Customer360Page() {
 
 
 function InfoCard({
-  label,
+  title,
   value,
 }: {
-  label: string;
+  title: string;
   value: string;
 }) {
   return (
@@ -340,26 +373,27 @@ function InfoCard({
       style={{
         padding: "20px",
         background: "white",
-        border: "1px solid #e2e8f0",
+        border:
+          "1px solid #e2e8f0",
         borderRadius: "12px",
       }}
     >
       <p
         style={{
-          margin: 0,
+          marginTop: 0,
           color: "#64748b",
         }}
       >
-        {label}
+        {title}
       </p>
 
-      <h2
+      <strong
         style={{
-          marginBottom: 0,
+          fontSize: "24px",
         }}
       >
         {value}
-      </h2>
+      </strong>
     </div>
   );
 }
