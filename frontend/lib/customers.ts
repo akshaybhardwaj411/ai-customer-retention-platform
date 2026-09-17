@@ -10,10 +10,23 @@ export type Customer = {
 
 export async function getCustomers(
   organizationId: string,
+  search?: string,
 ): Promise<Customer[]> {
+  const params = new URLSearchParams();
+
+  params.set(
+    "organization_id",
+    organizationId,
+  );
+
+  if (search?.trim()) {
+    params.set(
+      "search",
+      search.trim(),
+    );
+  }
+
   return apiRequest<Customer[]>(
-    `/customers/?organization_id=${encodeURIComponent(
-      organizationId,
-    )}`,
+    `/customers/?${params.toString()}`,
   );
 }
