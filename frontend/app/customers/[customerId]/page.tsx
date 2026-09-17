@@ -54,18 +54,21 @@ export default function Customer360Page() {
       }
 
       try {
-        const [
-          customer360,
-          customerInsight,
-          customerNextBestAction,
-        ] = await Promise.all([
-          getCustomer360(
-            customerId,
-            organizationId,
-          ),
-          getCustomerInsight(customerId),
-          getNextBestAction(customerId),
-        ]);
+       const [
+         customer360,
+         customerInsight,
+         customerNextBestAction,
+       ] = await Promise.all([
+         getCustomer360(
+           customerId,
+           organizationId,
+         ),
+         getCustomerInsight(
+           customerId,
+           organizationId,
+         ),
+         getNextBestAction(customerId),
+       ]);
 
         setData(customer360);
         setInsight(customerInsight);
