@@ -16,13 +16,14 @@ router = APIRouter(
 @router.get("/{customer_id}")
 def get_customer_insight(
     customer_id: UUID,
+    organization_id: UUID,
     db: Session = Depends(get_db),
 ):
     prediction = (
         db.query(Prediction)
         .filter(
-            Prediction.customer_id
-            == customer_id,
+            Prediction.customer_id == customer_id,
+            Prediction.organization_id == organization_id,
         )
         .order_by(
             Prediction.created_at.desc()
@@ -43,27 +44,24 @@ def get_customer_insight(
 
     probability = (
         float(prediction.churn_probability)
-        if prediction.churn_probability
-        is not None
+        if prediction.churn_probability is not None
         else None
     )
 
     risk_level = (
-        prediction.risk_level
-        or "unknown"
+        prediction.risk_level or "unknown"
     )
 
     if probability is not None:
         summary = (
-            f"The customer is currently "
-            f"classified as {risk_level} risk "
-            f"with an estimated churn probability "
-            f"of {probability:.0%}."
+            f"The customer is currently classified "
+            f"as {risk_level} risk with an estimated "
+            f"churn probability of {probability:.0%}."
         )
     else:
         summary = (
-            f"The customer is currently "
-            f"classified as {risk_level} risk."
+            f"The customer is currently classified "
+            f"as {risk_level} risk."
         )
 
     return {
