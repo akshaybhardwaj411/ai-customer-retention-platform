@@ -67,7 +67,10 @@ export default function Customer360Page() {
            customerId,
            organizationId,
          ),
-         getNextBestAction(customerId),
+         getNextBestAction(
+           customerId,
+           organizationId,
+         ),
        ]);
 
         setData(customer360);
