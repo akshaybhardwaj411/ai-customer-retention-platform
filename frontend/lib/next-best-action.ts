@@ -1,6 +1,5 @@
 import { apiRequest } from "./api";
 
-
 export type NextBestAction = {
   customer_id: string;
   action: string | null;
@@ -9,13 +8,15 @@ export type NextBestAction = {
   status: string;
 };
 
-
 export async function getNextBestAction(
   customerId: string,
+  organizationId: string,
 ): Promise<NextBestAction> {
   return apiRequest<NextBestAction>(
     `/next-best-action/${encodeURIComponent(
       customerId,
+    )}?organization_id=${encodeURIComponent(
+      organizationId,
     )}`,
   );
 }
