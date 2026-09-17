@@ -22,7 +22,8 @@ export async function createRetentionAction(
         organization_id: organizationId,
         customer_id: customerId,
         action_type: actionType,
-        recommendation: recommendation || null,
+        recommendation:
+          recommendation || null,
       }),
     },
   );
@@ -30,9 +31,22 @@ export async function createRetentionAction(
 
 export async function executeRetentionAction(
   actionId: string,
-): Promise<RetentionAction & { message: string }> {
-  return apiRequest<RetentionAction & { message: string }>(
-    `/actions/${encodeURIComponent(actionId)}/execute`,
+  organizationId: string,
+): Promise<
+  RetentionAction & {
+    message: string;
+  }
+> {
+  return apiRequest<
+    RetentionAction & {
+      message: string;
+    }
+  >(
+    `/actions/${encodeURIComponent(
+      actionId,
+    )}/execute?organization_id=${encodeURIComponent(
+      organizationId,
+    )}`,
     {
       method: "POST",
     },
