@@ -1,13 +1,11 @@
 import { apiRequest } from "./api";
 
-
 export type CustomerRisk = {
   customer_id: string;
   churn_probability: number | null;
   risk_level: string;
   source: string;
 };
-
 
 export type RiskSummary = {
   total_customers_with_predictions: number;
@@ -17,17 +15,18 @@ export type RiskSummary = {
   low: number;
 };
 
-
 export async function getCustomerRisk(
   customerId: string,
+  organizationId: string,
 ): Promise<CustomerRisk> {
   return apiRequest<CustomerRisk>(
     `/risk/customers/${encodeURIComponent(
       customerId,
+    )}?organization_id=${encodeURIComponent(
+      organizationId,
     )}`,
   );
 }
-
 
 export async function getRiskSummary(
   organizationId: string,
