@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import PlatformStatus from "../components/PlatformStatus";
 
 
@@ -30,6 +32,55 @@ export default function DashboardPage() {
 
         <PlatformStatus />
 
+        <nav
+          style={{
+            display: "flex",
+            gap: "10px",
+            flexWrap: "wrap",
+            marginTop: "28px",
+          }}
+        >
+          <NavLink
+            href="/action-center"
+            label="Action Center"
+          />
+
+          <NavLink
+            href="/customers"
+            label="Customers"
+          />
+
+          <NavLink
+            href="/risk"
+            label="Risk Center"
+          />
+
+          <NavLink
+            href="/ai-actions"
+            label="AI Actions"
+          />
+
+          <NavLink
+            href="/campaigns"
+            label="Campaigns"
+          />
+
+          <NavLink
+            href="/impact"
+            label="Impact"
+          />
+
+          <NavLink
+            href="/integrations"
+            label="Integrations"
+          />
+
+          <NavLink
+            href="/settings"
+            label="Settings"
+          />
+        </nav>
+
         <div
           style={{
             display: "grid",
@@ -42,21 +93,25 @@ export default function DashboardPage() {
           <DashboardCard
             title="Action Center"
             description="Review prioritized retention actions."
+            href="/action-center"
           />
 
           <DashboardCard
             title="Risk Center"
             description="Monitor customer churn risk."
+            href="/risk"
           />
 
           <DashboardCard
             title="Customers"
             description="Explore Customer 360 profiles."
+            href="/customers"
           />
 
           <DashboardCard
             title="Impact"
             description="Measure revenue saved through retention."
+            href="/impact"
           />
         </div>
       </section>
@@ -65,20 +120,51 @@ export default function DashboardPage() {
 }
 
 
+function NavLink({
+  href,
+  label,
+}: {
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        padding: "10px 14px",
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "8px",
+        color: "#0f172a",
+        textDecoration: "none",
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </Link>
+  );
+}
+
+
 function DashboardCard({
   title,
   description,
+  href,
 }: {
   title: string;
   description: string;
+  href: string;
 }) {
   return (
-    <div
+    <Link
+      href={href}
       style={{
         padding: "24px",
         background: "white",
         border: "1px solid #e2e8f0",
         borderRadius: "12px",
+        textDecoration: "none",
+        color: "#0f172a",
       }}
     >
       <h2>
@@ -93,6 +179,6 @@ function DashboardCard({
       >
         {description}
       </p>
-    </div>
+    </Link>
   );
 }
