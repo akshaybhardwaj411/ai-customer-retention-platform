@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.action_outcome import ActionOutcome
+from app.models.customer import Customer
 from app.models.retention_action import RetentionAction
 
 
@@ -27,6 +28,22 @@ def create_action(
     data: ActionCreate,
     db: Session = Depends(get_db),
 ):
+    customer = (
+        db.query(Customer)
+        .filter(
+            Customer.id == data.customer_id,
+            Customer.organization_id
+            == data.organization_id,
+        )
+        .first()
+    )
+
+    if not customer:
+        raise HTTPException(
+            status_code=404,
+            detail="Customer not found.",
+        )
+
     action = RetentionAction(
         organization_id=data.organization_id,
         customer_id=data.customer_id,
@@ -41,7 +58,9 @@ def create_action(
 
     return {
         "id": str(action.id),
-        "customer_id": str(action.customer_id),
+        "customer_id": str(
+            action.customer_id
+        ),
         "action_type": action.action_type,
         "status": action.status,
         "recommendation": action.recommendation,
@@ -51,11 +70,16 @@ def create_action(
 @router.post("/{action_id}/execute")
 def execute_action(
     action_id: UUID,
+    organization_id: UUID,
     db: Session = Depends(get_db),
 ):
     action = (
         db.query(RetentionAction)
-        .filter(RetentionAction.id == action_id)
+        .filter(
+            RetentionAction.id == action_id,
+            RetentionAction.organization_id
+            == organization_id,
+        )
         .first()
     )
 
@@ -68,9 +92,12 @@ def execute_action(
     if action.status == "completed":
         return {
             "id": str(action.id),
-            "customer_id": str(action.customer_id),
+            "customer_id": str(
+                action.customer_id
+            ),
             "action_type": action.action_type,
             "status": action.status,
+            "recommendation": action.recommendation,
             "message": "Action was already executed.",
         }
 
@@ -90,8 +117,14 @@ def execute_action(
 
     return {
         "id": str(action.id),
-        "customer_id": str(action.customer_id),
+        "customer_id": str(
+            action.customer_id
+        ),
         "action_type": action.action_type,
         "status": action.status,
-        "message": "Retention action executed and outcome recorded.",
+        "recommendation": action.recommendation,
+        "message": (
+            "Retention action executed "
+            "and outcome recorded."
+        ),
     }
