@@ -18,30 +18,40 @@ router = APIRouter(
 @router.get("/{customer_id}")
 def get_customer_360(
     customer_id: UUID,
+    organization_id: UUID,
     db: Session = Depends(get_db),
 ):
     customer = (
         db.query(Customer)
-        .filter(Customer.id == customer_id)
+        .filter(
+            Customer.id == customer_id,
+            Customer.organization_id == organization_id,
+        )
         .first()
     )
 
     if not customer:
         raise HTTPException(
             status_code=404,
-            detail="Customer not found",
+            detail="Customer not found.",
         )
 
     prediction = (
         db.query(Prediction)
-        .filter(Prediction.customer_id == customer_id)
+        .filter(
+            Prediction.customer_id == customer_id,
+            Prediction.organization_id == organization_id,
+        )
         .order_by(Prediction.created_at.desc())
         .first()
     )
 
     events = (
         db.query(CustomerEvent)
-        .filter(CustomerEvent.customer_id == customer_id)
+        .filter(
+            CustomerEvent.customer_id == customer_id,
+            CustomerEvent.organization_id == organization_id,
+        )
         .order_by(CustomerEvent.created_at.desc())
         .all()
     )
@@ -49,19 +59,25 @@ def get_customer_360(
     return {
         "customer": {
             "id": str(customer.id),
-            "organization_id": str(customer.organization_id),
+            "organization_id": str(
+                customer.organization_id
+            ),
             "name": customer.name,
             "email": customer.email,
         },
         "risk": {
-            "risk_level": prediction.risk_level
-            if prediction
-            else "unknown",
-            "churn_probability": float(
-                prediction.churn_probability
-            )
-            if prediction and prediction.churn_probability is not None
-            else None,
+            "risk_level": (
+                prediction.risk_level
+                if prediction
+                else "unknown"
+            ),
+            "churn_probability": (
+                float(prediction.churn_probability)
+                if prediction
+                and prediction.churn_probability
+                is not None
+                else None
+            ),
         },
         "health": {
             "status": "unknown",
