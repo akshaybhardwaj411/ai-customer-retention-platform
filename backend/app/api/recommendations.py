@@ -40,7 +40,9 @@ def create_recommendation(
 
     return {
         "id": str(recommendation.id),
-        "customer_id": str(recommendation.customer_id),
+        "customer_id": str(
+            recommendation.customer_id
+        ),
         "action_type": recommendation.action_type,
         "reason": recommendation.reason,
         "status": recommendation.status,
