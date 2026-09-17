@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -40,8 +40,56 @@ def create_action(
 
     return {
         "id": str(action.id),
-        "customer_id": str(action.customer_id),
+        "customer_id": str(
+            action.customer_id
+        ),
         "action_type": action.action_type,
         "status": action.status,
         "recommendation": action.recommendation,
+    }
+
+
+@router.post("/{action_id}/execute")
+def execute_action(
+    action_id: UUID,
+    db: Session = Depends(get_db),
+):
+    action = (
+        db.query(RetentionAction)
+        .filter(
+            RetentionAction.id == action_id
+        )
+        .first()
+    )
+
+    if not action:
+        raise HTTPException(
+            status_code=404,
+            detail="Retention action not found.",
+        )
+
+    if action.status == "completed":
+        return {
+            "id": str(action.id),
+            "customer_id": str(
+                action.customer_id
+            ),
+            "action_type": action.action_type,
+            "status": action.status,
+            "message": "Action was already executed.",
+        }
+
+    action.status = "completed"
+
+    db.commit()
+    db.refresh(action)
+
+    return {
+        "id": str(action.id),
+        "customer_id": str(
+            action.customer_id
+        ),
+        "action_type": action.action_type,
+        "status": action.status,
+        "message": "Retention action executed successfully.",
     }
