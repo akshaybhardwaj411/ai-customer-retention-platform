@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.services.organization_service import create_organization
+from app.services.organization_service import (
+    create_organization,
+)
 
 
 router = APIRouter(
@@ -13,7 +15,10 @@ router = APIRouter(
 
 
 class OrganizationCreate(BaseModel):
-    name: str
+    name: str = Field(
+        min_length=2,
+        max_length=255,
+    )
 
 
 @router.post("/")
@@ -21,13 +26,23 @@ def create_organization_endpoint(
     data: OrganizationCreate,
     db: Session = Depends(get_db),
 ):
+    organization_name = data.name.strip()
+
+    if not organization_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Organization name is required.",
+        )
+
     organization = create_organization(
         db=db,
-        name=data.name,
+        name=organization_name,
     )
 
     return {
         "id": str(organization.id),
         "name": organization.name,
-        "message": "Organization created successfully",
+        "message": (
+            "Organization created successfully"
+        ),
     }
