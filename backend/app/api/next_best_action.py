@@ -16,15 +16,16 @@ router = APIRouter(
 @router.get("/{customer_id}")
 def get_next_best_action(
     customer_id: UUID,
+    organization_id: UUID,
     db: Session = Depends(get_db),
 ):
     recommendation = (
         db.query(Recommendation)
         .filter(
-            Recommendation.customer_id
-            == customer_id,
-            Recommendation.status
-            == "pending",
+            Recommendation.customer_id == customer_id,
+            Recommendation.organization_id
+            == organization_id,
+            Recommendation.status == "pending",
         )
         .order_by(
             Recommendation.created_at.desc()
