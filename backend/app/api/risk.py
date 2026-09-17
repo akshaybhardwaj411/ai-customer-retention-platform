@@ -16,12 +16,18 @@ router = APIRouter(
 @router.get("/customers/{customer_id}")
 def get_customer_risk(
     customer_id: UUID,
+    organization_id: UUID,
     db: Session = Depends(get_db),
 ):
     prediction = (
         db.query(Prediction)
-        .filter(Prediction.customer_id == customer_id)
-        .order_by(Prediction.created_at.desc())
+        .filter(
+            Prediction.customer_id == customer_id,
+            Prediction.organization_id == organization_id,
+        )
+        .order_by(
+            Prediction.created_at.desc()
+        )
         .first()
     )
 
@@ -34,12 +40,15 @@ def get_customer_risk(
         }
 
     return {
-        "customer_id": str(prediction.customer_id),
-        "churn_probability": float(
-            prediction.churn_probability
-        )
-        if prediction.churn_probability is not None
-        else None,
+        "customer_id": str(
+            prediction.customer_id
+        ),
+        "churn_probability": (
+            float(prediction.churn_probability)
+            if prediction.churn_probability
+            is not None
+            else None
+        ),
         "risk_level": prediction.risk_level,
         "source": "prediction",
     }
