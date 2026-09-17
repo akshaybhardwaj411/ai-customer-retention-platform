@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -35,7 +35,9 @@ def create_customer_endpoint(
 
     return {
         "id": str(customer.id),
-        "organization_id": str(customer.organization_id),
+        "organization_id": str(
+            customer.organization_id
+        ),
         "name": customer.name,
         "email": customer.email,
     }
@@ -44,11 +46,37 @@ def create_customer_endpoint(
 @router.get("/")
 def list_customers(
     organization_id: UUID,
+    search: str | None = Query(
+        default=None,
+        max_length=255,
+    ),
     db: Session = Depends(get_db),
 ):
-    customers = (
+    query = (
         db.query(Customer)
-        .filter(Customer.organization_id == organization_id)
+        .filter(
+            Customer.organization_id
+            == organization_id
+        )
+    )
+
+    if search:
+        search_value = (
+            f"%{search.strip()}%"
+        )
+
+        query = query.filter(
+            Customer.name.ilike(
+                search_value
+            )
+            | Customer.email.ilike(
+                search_value
+            )
+        )
+
+    customers = (
+        query
+        .order_by(Customer.name.asc())
         .all()
     )
 
