@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.action_outcome import ActionOutcome
 from app.models.retention_action import RetentionAction
 
 
@@ -40,9 +41,7 @@ def create_action(
 
     return {
         "id": str(action.id),
-        "customer_id": str(
-            action.customer_id
-        ),
+        "customer_id": str(action.customer_id),
         "action_type": action.action_type,
         "status": action.status,
         "recommendation": action.recommendation,
@@ -56,9 +55,7 @@ def execute_action(
 ):
     action = (
         db.query(RetentionAction)
-        .filter(
-            RetentionAction.id == action_id
-        )
+        .filter(RetentionAction.id == action_id)
         .first()
     )
 
@@ -71,9 +68,7 @@ def execute_action(
     if action.status == "completed":
         return {
             "id": str(action.id),
-            "customer_id": str(
-                action.customer_id
-            ),
+            "customer_id": str(action.customer_id),
             "action_type": action.action_type,
             "status": action.status,
             "message": "Action was already executed.",
@@ -81,15 +76,22 @@ def execute_action(
 
     action.status = "completed"
 
+    outcome = ActionOutcome(
+        organization_id=action.organization_id,
+        action_id=action.id,
+        customer_id=action.customer_id,
+        outcome="executed",
+        revenue_saved=None,
+    )
+
+    db.add(outcome)
     db.commit()
     db.refresh(action)
 
     return {
         "id": str(action.id),
-        "customer_id": str(
-            action.customer_id
-        ),
+        "customer_id": str(action.customer_id),
         "action_type": action.action_type,
         "status": action.status,
-        "message": "Retention action executed successfully.",
+        "message": "Retention action executed and outcome recorded.",
     }
