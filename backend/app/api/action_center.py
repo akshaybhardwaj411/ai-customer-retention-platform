@@ -55,7 +55,9 @@ def get_action_center(
             ),
             "action_type": action.action_type,
             "status": action.status,
-            "recommendation": action.recommendation,
+            "recommendation": (
+                action.recommendation
+            ),
             "source": "retention_action",
         }
         for action in actions
@@ -82,8 +84,8 @@ def get_action_center(
     ]
 
     combined = (
-        action_items
-        + recommendation_items
+        action_items +
+        recommendation_items
     )
 
     return {
