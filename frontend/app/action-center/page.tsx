@@ -16,9 +16,8 @@ export default function ActionCenterPage() {
   const [error, setError] = useState("");
 
   async function loadActions() {
-    const organizationId = localStorage.getItem(
-      "organization_id",
-    );
+    const organizationId =
+      localStorage.getItem("organization_id");
 
     if (!organizationId) {
       setError("Organization not found.");
@@ -30,6 +29,7 @@ export default function ActionCenterPage() {
       const result = await getActionCenter(
         organizationId,
       );
+
       setActions(result.actions);
     } catch (requestError) {
       setError(
@@ -51,11 +51,26 @@ export default function ActionCenterPage() {
     setError("");
 
     try {
-      await executeRetentionAction(actionId);
+      const organizationId =
+        localStorage.getItem(
+          "organization_id",
+        );
+
+      if (!organizationId) {
+        setError("Organization not found.");
+        setExecutingId(null);
+        return;
+      }
+
+      await executeRetentionAction(
+        actionId,
+        organizationId,
+      );
 
       setActions((currentActions) =>
         currentActions.filter(
-          (action) => action.id !== actionId,
+          (action) =>
+            action.id !== actionId,
         ),
       );
     } catch (requestError) {
@@ -88,9 +103,13 @@ export default function ActionCenterPage() {
 
         <h1>Action Center</h1>
 
-        <p style={{ color: "#64748b" }}>
-          Review and execute prioritized retention
-          actions.
+        <p
+          style={{
+            color: "#64748b",
+          }}
+        >
+          Review and execute prioritized
+          retention actions.
         </p>
 
         {error && (
@@ -121,9 +140,14 @@ export default function ActionCenterPage() {
             }}
           >
             <h2>No pending actions</h2>
-            <p style={{ color: "#64748b" }}>
-              There are currently no retention actions
-              waiting for execution.
+
+            <p
+              style={{
+                color: "#64748b",
+              }}
+            >
+              There are currently no retention
+              actions waiting for execution.
             </p>
           </div>
         ) : (
@@ -140,14 +164,16 @@ export default function ActionCenterPage() {
                 style={{
                   padding: "20px",
                   background: "white",
-                  border: "1px solid #e2e8f0",
+                  border:
+                    "1px solid #e2e8f0",
                   borderRadius: "12px",
                 }}
               >
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
+                    justifyContent:
+                      "space-between",
                     gap: "16px",
                     flexWrap: "wrap",
                   }}
@@ -181,30 +207,39 @@ export default function ActionCenterPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      handleExecute(action.id)
+                      handleExecute(
+                        action.id,
+                      )
                     }
                     disabled={
-                      executingId === action.id
+                      executingId ===
+                      action.id
                     }
                     style={{
                       alignSelf: "center",
-                      padding: "10px 16px",
+                      padding:
+                        "10px 16px",
                       border: "none",
-                      borderRadius: "8px",
-                      background: "#0f172a",
+                      borderRadius:
+                        "8px",
+                      background:
+                        "#0f172a",
                       color: "white",
                       fontWeight: 600,
                       cursor:
-                        executingId === action.id
+                        executingId ===
+                        action.id
                           ? "not-allowed"
                           : "pointer",
                       opacity:
-                        executingId === action.id
+                        executingId ===
+                        action.id
                           ? 0.6
                           : 1,
                     }}
                   >
-                    {executingId === action.id
+                    {executingId ===
+                    action.id
                       ? "Executing..."
                       : "Execute Action"}
                   </button>
