@@ -21,9 +21,12 @@ from app.api.risk_summary import router as risk_summary_router
 from app.db.session import get_db
 
 
+API_VERSION = "1.0.0"
+
+
 app = FastAPI(
     title="AI Customer Retention Platform API",
-    version="1.0.0",
+    version=API_VERSION,
 )
 
 
@@ -61,7 +64,7 @@ def root():
     return {
         "message": "AI Customer Retention Platform API",
         "status": "running",
-        "version": "1.0.0",
+        "version": API_VERSION,
     }
 
 
@@ -70,7 +73,7 @@ def health():
     return {
         "status": "healthy",
         "service": "retention-api",
-        "version": "1.0.0",
+        "version": API_VERSION,
     }
 
 
@@ -92,3 +95,11 @@ def database_health():
         }
     finally:
         db.close()
+
+
+@app.get("/version")
+def version():
+    return {
+        "version": API_VERSION,
+        "service": "retention-api",
+    }
