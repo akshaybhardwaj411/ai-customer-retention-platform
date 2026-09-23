@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import {
   createCampaign,
   executeCampaign,
+  getCampaignAnalytics,
   getCampaigns,
   targetCampaignCustomers,
   updateCampaignStatus,
   type Campaign,
+  type CampaignAnalytics,
 } from "@/lib/campaigns";
 
 
@@ -150,6 +152,149 @@ function ActionLabel({
 }
 
 
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div
+      style={{
+        minWidth: "100px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "11px",
+          color: "#94a3b8",
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          marginTop: "4px",
+          fontSize: "18px",
+          fontWeight: 700,
+          color: "#0f172a",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+
+function AnalyticsPanel({
+  analytics,
+}: {
+  analytics: CampaignAnalytics;
+}) {
+  const saveRate =
+    `${(
+      analytics.save_rate * 100
+    ).toFixed(1)}%`;
+
+  return (
+    <div
+      style={{
+        marginTop: "18px",
+        padding: "18px",
+        background: "#f8fafc",
+        borderRadius: "10px",
+        border:
+          "1px solid #e2e8f0",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 700,
+          color: "#0f172a",
+          marginBottom: "14px",
+        }}
+      >
+        Campaign Performance
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(100px, 1fr))",
+          gap: "16px",
+        }}
+      >
+        <Metric
+          label="Targeted"
+          value={
+            analytics.targeted_customers
+          }
+        />
+
+        <Metric
+          label="Actions"
+          value={
+            analytics.actions_created
+          }
+        />
+
+        <Metric
+          label="Executed"
+          value={
+            analytics.actions_executed
+          }
+        />
+
+        <Metric
+          label="Outcomes"
+          value={
+            analytics.outcomes_recorded
+          }
+        />
+
+        <Metric
+          label="Saved"
+          value={analytics.saved}
+        />
+
+        <Metric
+          label="Not Saved"
+          value={
+            analytics.not_saved
+          }
+        />
+
+        <Metric
+          label="No Response"
+          value={
+            analytics.no_response
+          }
+        />
+
+        <Metric
+          label="Save Rate"
+          value={saveRate}
+        />
+
+        <Metric
+          label="Revenue Saved"
+          value={`₹${analytics.revenue_saved.toLocaleString(
+            "en-IN",
+          )}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+
 export default function CampaignsPage() {
   const [
     organizationId,
@@ -162,6 +307,13 @@ export default function CampaignsPage() {
   ] = useState<Campaign[]>([]);
 
   const [
+    analytics,
+    setAnalytics,
+  ] = useState<
+    Record<string, CampaignAnalytics>
+  >({});
+
+  const [
     loading,
     setLoading,
   ] = useState(true);
@@ -170,6 +322,11 @@ export default function CampaignsPage() {
     submitting,
     setSubmitting,
   ] = useState(false);
+
+  const [
+    loadingAnalytics,
+    setLoadingAnalytics,
+  ] = useState<string | null>(null);
 
   const [
     executingCampaignId,
@@ -265,6 +422,44 @@ export default function CampaignsPage() {
   }, [organizationId]);
 
 
+  async function handleLoadAnalytics(
+    campaignId: string,
+  ) {
+    if (!organizationId) {
+      return;
+    }
+
+    try {
+      setLoadingAnalytics(
+        campaignId,
+      );
+      setError(null);
+
+      const result =
+        await getCampaignAnalytics(
+          campaignId,
+          organizationId,
+        );
+
+      setAnalytics(
+        (current) => ({
+          ...current,
+          [campaignId]:
+            result,
+        }),
+      );
+    } catch (analyticsError) {
+      setError(
+        analyticsError instanceof Error
+          ? analyticsError.message
+          : "Unable to load campaign analytics.",
+      );
+    } finally {
+      setLoadingAnalytics(null);
+    }
+  }
+
+
   async function handleCreateCampaign(
     event: React.FormEvent,
   ) {
@@ -349,6 +544,14 @@ export default function CampaignsPage() {
       );
 
       await loadCampaigns();
+
+      if (
+        analytics[campaign.id]
+      ) {
+        await handleLoadAnalytics(
+          campaign.id,
+        );
+      }
     } catch (statusError) {
       setError(
         statusError instanceof Error
@@ -380,6 +583,10 @@ export default function CampaignsPage() {
       );
 
       await loadCampaigns();
+
+      await handleLoadAnalytics(
+        campaign.id,
+      );
     } catch (executionError) {
       setError(
         executionError instanceof Error
@@ -473,9 +680,8 @@ export default function CampaignsPage() {
           }}
         >
           Create targeted retention
-          campaigns and turn risk
-          segments into actionable
-          customer interventions.
+          campaigns and measure their
+          customer impact.
         </p>
       </header>
 
@@ -546,8 +752,7 @@ export default function CampaignsPage() {
         >
           Select a risk segment and
           define the retention action
-          that should be created for
-          targeted customers.
+          for those customers.
         </p>
 
         <form
@@ -751,41 +956,32 @@ export default function CampaignsPage() {
       <section>
         <div
           style={{
-            display: "flex",
-            justifyContent:
-              "space-between",
-            alignItems:
-              "center",
             marginBottom: "14px",
-            gap: "12px",
-            flexWrap: "wrap",
           }}
         >
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "20px",
-                color: "#0f172a",
-              }}
-            >
-              Campaigns
-            </h2>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "20px",
+              color: "#0f172a",
+            }}
+          >
+            Campaigns
+          </h2>
 
-            <p
-              style={{
-                margin:
-                  "5px 0 0",
-                color: "#64748b",
-                fontSize: "14px",
-              }}
-            >
-              {campaigns.length} campaign
-              {campaigns.length === 1
-                ? ""
-                : "s"}
-            </p>
-          </div>
+          <p
+            style={{
+              margin:
+                "5px 0 0",
+              color: "#64748b",
+              fontSize: "14px",
+            }}
+          >
+            {campaigns.length} campaign
+            {campaigns.length === 1
+              ? ""
+              : "s"}
+          </p>
         </div>
 
 
@@ -811,252 +1007,224 @@ export default function CampaignsPage() {
             }}
           >
             {campaigns.map(
-              (campaign) => (
-                <div
-                  key={campaign.id}
-                  style={{
-                    background:
-                      "#ffffff",
-                    border:
-                      "1px solid #e2e8f0",
-                    borderRadius:
-                      "12px",
-                    padding: "20px",
-                  }}
-                >
+              (campaign) => {
+                const campaignAnalytics =
+                  analytics[
+                    campaign.id
+                  ];
+
+                return (
                   <div
+                    key={campaign.id}
                     style={{
-                      display: "flex",
-                      justifyContent:
-                        "space-between",
-                      alignItems:
-                        "flex-start",
-                      gap: "16px",
-                      flexWrap:
-                        "wrap",
+                      background:
+                        "#ffffff",
+                      border:
+                        "1px solid #e2e8f0",
+                      borderRadius:
+                        "12px",
+                      padding: "20px",
                     }}
                   >
                     <div
                       style={{
-                        minWidth: 0,
-                        flex: 1,
+                        display:
+                          "flex",
+                        justifyContent:
+                          "space-between",
+                        alignItems:
+                          "flex-start",
+                        gap: "16px",
+                        flexWrap:
+                          "wrap",
                       }}
                     >
                       <div
                         style={{
-                          display:
-                            "flex",
-                          alignItems:
-                            "center",
-                          gap: "10px",
-                          flexWrap:
-                            "wrap",
+                          minWidth: 0,
+                          flex: 1,
                         }}
                       >
-                        <h3
+                        <div
                           style={{
-                            margin: 0,
-                            fontSize:
-                              "18px",
-                            color:
-                              "#0f172a",
+                            display:
+                              "flex",
+                            alignItems:
+                              "center",
+                            gap: "10px",
+                            flexWrap:
+                              "wrap",
                           }}
                         >
-                          {
-                            campaign.name
-                          }
-                        </h3>
+                          <h3
+                            style={{
+                              margin: 0,
+                              fontSize:
+                                "18px",
+                              color:
+                                "#0f172a",
+                            }}
+                          >
+                            {
+                              campaign.name
+                            }
+                          </h3>
 
-                        <StatusBadge
-                          status={
-                            campaign.status
-                          }
-                        />
-                      </div>
+                          <StatusBadge
+                            status={
+                              campaign.status
+                            }
+                          />
+                        </div>
 
-                      {campaign.description && (
-                        <p
-                          style={{
-                            margin:
-                              "8px 0 0",
-                            color:
-                              "#64748b",
-                            fontSize:
-                              "14px",
-                          }}
-                        >
-                          {
-                            campaign.description
-                          }
-                        </p>
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize:
-                          "13px",
-                        color:
-                          "#64748b",
-                      }}
-                    >
-                      {
-                        campaign.customer_count ??
-                        0
-                      }{" "}
-                      customers
-                    </div>
-                  </div>
-
-
-                  <div
-                    style={{
-                      display:
-                        "flex",
-                      gap: "20px",
-                      flexWrap:
-                        "wrap",
-                      marginTop:
-                        "16px",
-                      paddingTop:
-                        "16px",
-                      borderTop:
-                        "1px solid #f1f5f9",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize:
-                            "11px",
-                          color:
-                            "#94a3b8",
-                          textTransform:
-                            "uppercase",
-                          letterSpacing:
-                            "0.04em",
-                        }}
-                      >
-                        Action
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop:
-                            "4px",
-                          fontSize:
-                            "14px",
-                          fontWeight:
-                            600,
-                          color:
-                            "#334155",
-                        }}
-                      >
-                        <ActionLabel
-                          actionType={
-                            campaign.action_type
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          fontSize:
-                            "11px",
-                          color:
-                            "#94a3b8",
-                          textTransform:
-                            "uppercase",
-                          letterSpacing:
-                            "0.04em",
-                        }}
-                      >
-                        Segment
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop:
-                            "4px",
-                          fontSize:
-                            "14px",
-                          fontWeight:
-                            600,
-                          color:
-                            "#334155",
-                          textTransform:
-                            "capitalize",
-                        }}
-                      >
-                        {(
-                          campaign.target_segment ||
-                          "Not set"
-                        ).replace(
-                          /_/g,
-                          " ",
+                        {campaign.description && (
+                          <p
+                            style={{
+                              margin:
+                                "8px 0 0",
+                              color:
+                                "#64748b",
+                              fontSize:
+                                "14px",
+                            }}
+                          >
+                            {
+                              campaign.description
+                            }
+                          </p>
                         )}
                       </div>
-                    </div>
-                  </div>
 
-
-                  <div
-                    style={{
-                      display:
-                        "flex",
-                      gap: "8px",
-                      flexWrap:
-                        "wrap",
-                      marginTop:
-                        "18px",
-                    }}
-                  >
-                    {campaign.status ===
-                      "draft" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleStatusChange(
-                            campaign,
-                            "active",
-                          )
-                        }
+                      <div
                         style={{
-                          border:
-                            "none",
-                          borderRadius:
-                            "8px",
-                          padding:
-                            "9px 14px",
-                          background:
-                            "#16a34a",
+                          fontSize:
+                            "13px",
                           color:
-                            "#ffffff",
-                          cursor:
-                            "pointer",
-                          fontWeight:
-                            600,
+                            "#64748b",
                         }}
                       >
-                        Activate
-                      </button>
-                    )}
+                        {
+                          campaign.customer_count ??
+                          0
+                        }{" "}
+                        customers
+                      </div>
+                    </div>
 
-                    {campaign.status ===
-                      "active" && (
-                      <>
+
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        gap: "20px",
+                        flexWrap:
+                          "wrap",
+                        marginTop:
+                          "16px",
+                        paddingTop:
+                          "16px",
+                        borderTop:
+                          "1px solid #f1f5f9",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize:
+                              "11px",
+                            color:
+                              "#94a3b8",
+                            textTransform:
+                              "uppercase",
+                            letterSpacing:
+                              "0.04em",
+                          }}
+                        >
+                          Action
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop:
+                              "4px",
+                            fontSize:
+                              "14px",
+                            fontWeight:
+                              600,
+                            color:
+                              "#334155",
+                          }}
+                        >
+                          <ActionLabel
+                            actionType={
+                              campaign.action_type
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize:
+                              "11px",
+                            color:
+                              "#94a3b8",
+                            textTransform:
+                              "uppercase",
+                            letterSpacing:
+                              "0.04em",
+                          }}
+                        >
+                          Segment
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop:
+                              "4px",
+                            fontSize:
+                              "14px",
+                            fontWeight:
+                              600,
+                            color:
+                              "#334155",
+                            textTransform:
+                              "capitalize",
+                          }}
+                        >
+                          {(
+                            campaign.target_segment ||
+                            "Not set"
+                          ).replace(
+                            /_/g,
+                            " ",
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        gap: "8px",
+                        flexWrap:
+                          "wrap",
+                        marginTop:
+                          "18px",
+                      }}
+                    >
+                      {campaign.status ===
+                        "draft" && (
                         <button
                           type="button"
                           onClick={() =>
-                            handleExecuteCampaign(
+                            handleStatusChange(
                               campaign,
+                              "active",
                             )
-                          }
-                          disabled={
-                            executingCampaignId ===
-                            campaign.id
                           }
                           style={{
                             border:
@@ -1066,33 +1234,133 @@ export default function CampaignsPage() {
                             padding:
                               "9px 14px",
                             background:
-                              executingCampaignId ===
-                              campaign.id
-                                ? "#94a3b8"
-                                : "#2563eb",
+                              "#16a34a",
                             color:
                               "#ffffff",
                             cursor:
-                              executingCampaignId ===
-                              campaign.id
-                                ? "not-allowed"
-                                : "pointer",
+                              "pointer",
                             fontWeight:
                               600,
                           }}
                         >
-                          {executingCampaignId ===
-                          campaign.id
-                            ? "Executing..."
-                            : "Execute Campaign"}
+                          Activate
                         </button>
+                      )}
 
+                      {campaign.status ===
+                        "active" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleExecuteCampaign(
+                                campaign,
+                              )
+                            }
+                            disabled={
+                              executingCampaignId ===
+                              campaign.id
+                            }
+                            style={{
+                              border:
+                                "none",
+                              borderRadius:
+                                "8px",
+                              padding:
+                                "9px 14px",
+                              background:
+                                executingCampaignId ===
+                                campaign.id
+                                  ? "#94a3b8"
+                                  : "#2563eb",
+                              color:
+                                "#ffffff",
+                              cursor:
+                                executingCampaignId ===
+                                campaign.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              fontWeight:
+                                600,
+                            }}
+                          >
+                            {executingCampaignId ===
+                            campaign.id
+                              ? "Executing..."
+                              : "Execute Campaign"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleStatusChange(
+                                campaign,
+                                "paused",
+                              )
+                            }
+                            style={{
+                              border:
+                                "1px solid #cbd5e1",
+                              borderRadius:
+                                "8px",
+                              padding:
+                                "9px 14px",
+                              background:
+                                "#ffffff",
+                              color:
+                                "#334155",
+                              cursor:
+                                "pointer",
+                              fontWeight:
+                                600,
+                            }}
+                          >
+                            Pause
+                          </button>
+                        </>
+                      )}
+
+                      {campaign.status ===
+                        "paused" && (
                         <button
                           type="button"
                           onClick={() =>
                             handleStatusChange(
                               campaign,
-                              "paused",
+                              "active",
+                            )
+                          }
+                          style={{
+                            border:
+                              "none",
+                            borderRadius:
+                              "8px",
+                            padding:
+                              "9px 14px",
+                            background:
+                              "#16a34a",
+                            color:
+                              "#ffffff",
+                            cursor:
+                              "pointer",
+                            fontWeight:
+                              600,
+                          }}
+                        >
+                          Resume
+                        </button>
+                      )}
+
+                      {(campaign.status ===
+                        "active" ||
+                        campaign.status ===
+                          "paused") && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStatusChange(
+                              campaign,
+                              "completed",
                             )
                           }
                           style={{
@@ -1112,53 +1380,20 @@ export default function CampaignsPage() {
                               600,
                           }}
                         >
-                          Pause
+                          Complete
                         </button>
-                      </>
-                    )}
+                      )}
 
-                    {campaign.status ===
-                      "paused" && (
                       <button
                         type="button"
                         onClick={() =>
-                          handleStatusChange(
-                            campaign,
-                            "active",
+                          handleLoadAnalytics(
+                            campaign.id,
                           )
                         }
-                        style={{
-                          border:
-                            "none",
-                          borderRadius:
-                            "8px",
-                          padding:
-                            "9px 14px",
-                          background:
-                            "#16a34a",
-                          color:
-                            "#ffffff",
-                          cursor:
-                            "pointer",
-                          fontWeight:
-                            600,
-                        }}
-                      >
-                        Resume
-                      </button>
-                    )}
-
-                    {(campaign.status ===
-                      "active" ||
-                      campaign.status ===
-                        "paused") && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleStatusChange(
-                            campaign,
-                            "completed",
-                          )
+                        disabled={
+                          loadingAnalytics ===
+                          campaign.id
                         }
                         style={{
                           border:
@@ -1172,17 +1407,34 @@ export default function CampaignsPage() {
                           color:
                             "#334155",
                           cursor:
-                            "pointer",
+                            loadingAnalytics ===
+                            campaign.id
+                              ? "not-allowed"
+                              : "pointer",
                           fontWeight:
                             600,
                         }}
                       >
-                        Complete
+                        {loadingAnalytics ===
+                        campaign.id
+                          ? "Loading..."
+                          : campaignAnalytics
+                            ? "Refresh Analytics"
+                            : "View Analytics"}
                       </button>
+                    </div>
+
+
+                    {campaignAnalytics && (
+                      <AnalyticsPanel
+                        analytics={
+                          campaignAnalytics
+                        }
+                      />
                     )}
                   </div>
-                </div>
-              ),
+                );
+              },
             )}
           </div>
         )}
