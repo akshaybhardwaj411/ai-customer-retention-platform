@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -268,6 +269,261 @@ def get_campaign(
         campaign,
         customer_count,
     )
+
+
+@router.get(
+    "/{campaign_id}/analytics"
+)
+def get_campaign_analytics(
+    campaign_id: UUID,
+    organization_id: UUID,
+    db: Session = Depends(get_db),
+):
+    campaign = (
+        db.query(Campaign)
+        .filter(
+            Campaign.id == campaign_id,
+            Campaign.organization_id
+            == organization_id,
+        )
+        .first()
+    )
+
+    if not campaign:
+        raise HTTPException(
+            status_code=404,
+            detail="Campaign not found.",
+        )
+
+    base_query = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+        )
+    )
+
+    targeted_customers = (
+        base_query.count()
+    )
+
+    actions_created = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.retention_action_id
+            .isnot(None),
+        )
+        .count()
+    )
+
+    actions_executed = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.status
+            .in_(
+                [
+                    "executed",
+                    "outcome_recorded",
+                ]
+            ),
+        )
+        .count()
+    )
+
+    outcomes_recorded = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.outcome
+            .isnot(None),
+        )
+        .count()
+    )
+
+    saved = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.outcome
+            == "saved",
+        )
+        .count()
+    )
+
+    not_saved = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.outcome
+            == "not_saved",
+        )
+        .count()
+    )
+
+    no_response = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.outcome
+            == "no_response",
+        )
+        .count()
+    )
+
+    unknown = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.outcome
+            == "unknown",
+        )
+        .count()
+    )
+
+    revenue_saved = (
+        db.query(
+            func.coalesce(
+                func.sum(
+                    CampaignCustomer.customer_id
+                ),
+                0,
+            )
+        )
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+        )
+        .scalar()
+    )
+
+    # Revenue is stored on ActionOutcome,
+    # not CampaignCustomer.
+    # Calculate it from the linked
+    # retention actions.
+    from app.models.action_outcome import (
+        ActionOutcome,
+    )
+
+    campaign_action_ids = (
+        db.query(
+            CampaignCustomer.retention_action_id
+        )
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.retention_action_id
+            .isnot(None),
+        )
+        .all()
+    )
+
+    action_ids = [
+        row[0]
+        for row in campaign_action_ids
+        if row[0] is not None
+    ]
+
+    if action_ids:
+        revenue_saved = (
+            db.query(
+                func.coalesce(
+                    func.sum(
+                        ActionOutcome.revenue_saved
+                    ),
+                    0,
+                )
+            )
+            .filter(
+                ActionOutcome.organization_id
+                == organization_id,
+                ActionOutcome.action_id.in_(
+                    action_ids
+                ),
+                ActionOutcome.outcome
+                == "saved",
+            )
+            .scalar()
+        )
+    else:
+        revenue_saved = 0
+
+    resolved_outcomes = (
+        saved + not_saved
+    )
+
+    save_rate = (
+        saved / resolved_outcomes
+        if resolved_outcomes > 0
+        else 0
+    )
+
+    return {
+        "campaign_id": str(
+            campaign.id
+        ),
+        "campaign_name":
+            campaign.name,
+        "status":
+            campaign.status,
+        "target_segment":
+            campaign.target_segment,
+        "targeted_customers":
+            targeted_customers,
+        "actions_created":
+            actions_created,
+        "actions_executed":
+            actions_executed,
+        "outcomes_recorded":
+            outcomes_recorded,
+        "saved":
+            saved,
+        "not_saved":
+            not_saved,
+        "no_response":
+            no_response,
+        "unknown":
+            unknown,
+        "resolved_outcomes":
+            resolved_outcomes,
+        "save_rate":
+            round(
+                save_rate,
+                4,
+            ),
+        "revenue_saved":
+            float(
+                revenue_saved or 0
+            ),
+    }
 
 
 @router.patch(
