@@ -65,7 +65,7 @@ def get_next_best_action(
     db: Session = Depends(get_db),
 ):
     # --------------------------------------------------
-    # 1. Return an existing recommendation
+    # 1. Return existing recommendation
     # --------------------------------------------------
 
     existing_recommendation = (
@@ -82,6 +82,7 @@ def get_next_best_action(
             "action": existing_recommendation.action_type,
             "reason": existing_recommendation.reason,
             "expected_value": None,
+            "risk_factors": [],
             "status": existing_recommendation.status,
             "source": "stored_recommendation",
         }
@@ -102,6 +103,7 @@ def get_next_best_action(
             "action": None,
             "reason": None,
             "expected_value": None,
+            "risk_factors": [],
             "status": "not_available",
             "source": "no_prediction",
         }
@@ -125,12 +127,13 @@ def get_next_best_action(
                 "retention opportunities."
             ),
             "expected_value": None,
+            "risk_factors": [],
             "status": "available",
             "source": "fallback",
         }
 
     # --------------------------------------------------
-    # 4. Get persisted customer features
+    # 4. Get persisted features
     # --------------------------------------------------
 
     customer_features = (
@@ -147,6 +150,7 @@ def get_next_best_action(
                 "available for recommendation generation."
             ),
             "expected_value": None,
+            "risk_factors": [],
             "status": "available",
             "source": "missing_features",
         }
@@ -194,7 +198,7 @@ def get_next_best_action(
     db.refresh(recommendation)
 
     # --------------------------------------------------
-    # 8. Return Next Best Action
+    # 8. Return action + explanation context
     # --------------------------------------------------
 
     return {
@@ -202,6 +206,7 @@ def get_next_best_action(
         "action": recommendation.action_type,
         "reason": recommendation.reason,
         "expected_value": None,
+        "risk_factors": risk_factors[:5],
         "status": recommendation.status,
         "source": "risk_based_recommendation",
     }
