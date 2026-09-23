@@ -1,254 +1,552 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
-  executeRetentionAction,
   getActionCenter,
-  RetentionAction,
-} from "../../lib/actions";
+  type ActionCenterItem,
+  type ActionCenterResponse,
+} from "@/lib/action-center";
+
+import {
+  executeRetentionAction,
+} from "@/lib/actions";
+
+
+function RiskBadge({
+  level,
+}: {
+  level: string;
+}) {
+  const normalized =
+    level.toLowerCase();
+
+  const styles: Record<
+    string,
+    {
+      background: string;
+      color: string;
+    }
+  > = {
+    critical: {
+      background: "#fee2e2",
+      color: "#991b1b",
+    },
+    high: {
+      background: "#ffedd5",
+      color: "#9a3412",
+    },
+    medium: {
+      background: "#fef3c7",
+      color: "#92400e",
+    },
+    low: {
+      background: "#dcfce7",
+      color: "#166534",
+    },
+  };
+
+  const style =
+    styles[normalized] ||
+    {
+      background: "#f1f5f9",
+      color: "#475569",
+    };
+
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "5px 9px",
+        borderRadius: "999px",
+        fontSize: "12px",
+        fontWeight: 600,
+        background:
+          style.background,
+        color: style.color,
+        textTransform:
+          "capitalize",
+      }}
+    >
+      {normalized}
+    </span>
+  );
+}
+
+
+function ActionCard({
+  item,
+  organizationId,
+  onExecuted,
+}: {
+  item: ActionCenterItem;
+  organizationId: string;
+  onExecuted: () => void;
+}) {
+  const [executing, setExecuting] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+
+  async function handleExecute() {
+    try {
+      setExecuting(true);
+      setError(null);
+
+      await executeRetentionAction(
+        item.id,
+        organizationId,
+      );
+
+      onExecuted();
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Unable to execute action.",
+      );
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border:
+          "1px solid #e2e8f0",
+        borderRadius: "12px",
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent:
+            "space-between",
+          alignItems: "flex-start",
+          gap: "16px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "10px",
+            }}
+          >
+            <RiskBadge
+              level={item.risk_level}
+            />
+
+            <span
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+              }}
+            >
+              Priority {item.priority}
+            </span>
+          </div>
+
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "#0f172a",
+            }}
+          >
+            {item.action_type.replace(
+              /_/g,
+              " ",
+            )}
+          </div>
+
+          <div
+            style={{
+              marginTop: "6px",
+              fontSize: "13px",
+              color: "#64748b",
+            }}
+          >
+            Customer:{" "}
+            {item.customer_id}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleExecute}
+          disabled={executing}
+          style={{
+            border: "none",
+            borderRadius: "8px",
+            padding:
+              "10px 16px",
+            background:
+              executing
+                ? "#94a3b8"
+                : "#0f172a",
+            color: "#ffffff",
+            cursor:
+              executing
+                ? "not-allowed"
+                : "pointer",
+            fontWeight: 600,
+          }}
+        >
+          {executing
+            ? "Executing..."
+            : "Execute Action"}
+        </button>
+      </div>
+
+      {item.recommendation && (
+        <div
+          style={{
+            marginTop: "18px",
+            padding: "14px",
+            background: "#f8fafc",
+            borderRadius: "8px",
+            color: "#334155",
+            lineHeight: 1.5,
+            fontSize: "14px",
+          }}
+        >
+          <strong>
+            AI Recommendation
+          </strong>
+
+          <div
+            style={{
+              marginTop: "5px",
+            }}
+          >
+            {item.recommendation}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "10px",
+            borderRadius: "8px",
+            background: "#fef2f2",
+            color: "#991b1b",
+            fontSize: "13px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export default function ActionCenterPage() {
-  const [actions, setActions] = useState<RetentionAction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [executingId, setExecutingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [
+    organizationId,
+    setOrganizationId,
+  ] = useState("");
 
-  async function loadActions() {
-    const organizationId =
-      localStorage.getItem("organization_id");
+  const [
+    data,
+    setData,
+  ] = useState<ActionCenterResponse | null>(
+    null,
+  );
 
-    if (!organizationId) {
-      setError("Organization not found.");
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    const storedId =
+      window.localStorage.getItem(
+        "organization_id",
+      );
+
+    if (!storedId) {
+      setError(
+        "Organization is not selected.",
+      );
       setLoading(false);
       return;
     }
 
-    try {
-      const result = await getActionCenter(
-        organizationId,
-      );
+    setOrganizationId(
+      storedId,
+    );
+  }, []);
 
-      setActions(result.actions);
-    } catch (requestError) {
+
+  async function loadActionCenter() {
+    if (!organizationId) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const result =
+        await getActionCenter(
+          organizationId,
+        );
+
+      setData(result);
+    } catch (actionCenterError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to load actions.",
+        actionCenterError instanceof Error
+          ? actionCenterError.message
+          : "Unable to load Action Center.",
       );
     } finally {
       setLoading(false);
     }
   }
 
+
   useEffect(() => {
-    loadActions();
-  }, []);
+    loadActionCenter();
+  }, [organizationId]);
 
-  async function handleExecute(actionId: string) {
-    setExecutingId(actionId);
-    setError("");
 
-    try {
-      const organizationId =
-        localStorage.getItem(
-          "organization_id",
-        );
-
-      if (!organizationId) {
-        setError("Organization not found.");
-        setExecutingId(null);
-        return;
-      }
-
-      await executeRetentionAction(
-        actionId,
-        organizationId,
-      );
-
-      setActions((currentActions) =>
-        currentActions.filter(
-          (action) =>
-            action.id !== actionId,
-        ),
-      );
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to execute action.",
-      );
-    } finally {
-      setExecutingId(null);
-    }
+  if (loading) {
+    return (
+      <main
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "32px 20px",
+        }}
+      >
+        Loading Action Center...
+      </main>
+    );
   }
+
+
+  if (error) {
+    return (
+      <main
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "32px 20px",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px",
+            background: "#fef2f2",
+            border:
+              "1px solid #fecaca",
+            borderRadius: "10px",
+            color: "#991b1b",
+          }}
+        >
+          {error}
+        </div>
+      </main>
+    );
+  }
+
+
+  if (!data) {
+    return (
+      <main
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "32px 20px",
+        }}
+      >
+        No action data available.
+      </main>
+    );
+  }
+
 
   return (
     <main
       style={{
-        minHeight: "100vh",
-        padding: "32px 24px",
+        maxWidth: "1200px",
+        margin: "0 auto",
+        padding: "32px 20px 60px",
       }}
     >
-      <section
+      <header
         style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
+          marginBottom: "28px",
         }}
       >
-        <Link href="/dashboard">
-          ← Dashboard
-        </Link>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "#64748b",
+            marginBottom: "6px",
+          }}
+        >
+          Retention Operations
+        </div>
 
-        <h1>Action Center</h1>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "32px",
+            color: "#0f172a",
+          }}
+        >
+          Action Center
+        </h1>
 
         <p
           style={{
+            marginTop: "8px",
             color: "#64748b",
           }}
         >
-          Review and execute prioritized
-          retention actions.
+          Prioritized retention actions
+          that need attention.
         </p>
+      </header>
 
-        {error && (
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "12px 16px",
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              borderRadius: "8px",
-              color: "#991b1b",
-            }}
-          >
-            {error}
-          </div>
-        )}
 
-        {loading ? (
-          <p>Loading actions...</p>
-        ) : actions.length === 0 ? (
-          <div
-            style={{
-              marginTop: "24px",
-              padding: "24px",
-              background: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "12px",
-            }}
-          >
-            <h2>No pending actions</h2>
-
-            <p
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: "12px",
+          marginBottom: "28px",
+        }}
+      >
+        {[
+          [
+            "Total",
+            data.total_actions,
+          ],
+          [
+            "Critical",
+            data.critical,
+          ],
+          [
+            "High",
+            data.high,
+          ],
+          [
+            "Medium",
+            data.medium,
+          ],
+          [
+            "Low",
+            data.low,
+          ],
+        ].map(
+          ([label, value]) => (
+            <div
+              key={String(label)}
               style={{
-                color: "#64748b",
+                background:
+                  "#ffffff",
+                border:
+                  "1px solid #e2e8f0",
+                borderRadius:
+                  "10px",
+                padding: "16px",
               }}
             >
-              There are currently no retention
-              actions waiting for execution.
-            </p>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              marginTop: "24px",
-            }}
-          >
-            {actions.map((action) => (
-              <article
-                key={action.id}
+              <div
                 style={{
-                  padding: "20px",
-                  background: "white",
-                  border:
-                    "1px solid #e2e8f0",
-                  borderRadius: "12px",
+                  fontSize: "12px",
+                  color: "#64748b",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent:
-                      "space-between",
-                    gap: "16px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <h2
-                      style={{
-                        marginTop: 0,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      {action.action_type}
-                    </h2>
+                {label}
+              </div>
 
-                    <p
-                      style={{
-                        color: "#64748b",
-                      }}
-                    >
-                      {action.recommendation ||
-                        "No recommendation details available."}
-                    </p>
-
-                    <Link
-                      href={`/customers/${action.customer_id}`}
-                    >
-                      View Customer 360
-                    </Link>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleExecute(
-                        action.id,
-                      )
-                    }
-                    disabled={
-                      executingId ===
-                      action.id
-                    }
-                    style={{
-                      alignSelf: "center",
-                      padding:
-                        "10px 16px",
-                      border: "none",
-                      borderRadius:
-                        "8px",
-                      background:
-                        "#0f172a",
-                      color: "white",
-                      fontWeight: 600,
-                      cursor:
-                        executingId ===
-                        action.id
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity:
-                        executingId ===
-                        action.id
-                          ? 0.6
-                          : 1,
-                    }}
-                  >
-                    {executingId ===
-                    action.id
-                      ? "Executing..."
-                      : "Execute Action"}
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "24px",
+                  fontWeight: 700,
+                }}
+              >
+                {value}
+              </div>
+            </div>
+          ),
         )}
       </section>
+
+
+      {data.actions.length === 0 ? (
+        <div
+          style={{
+            padding: "40px 20px",
+            textAlign: "center",
+            background: "#ffffff",
+            border:
+              "1px solid #e2e8f0",
+            borderRadius: "12px",
+            color: "#64748b",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: 600,
+              color: "#0f172a",
+              marginBottom: "6px",
+            }}
+          >
+            No pending actions
+          </div>
+
+          All current retention
+          actions have been handled.
+        </div>
+      ) : (
+        <section
+          style={{
+            display: "grid",
+            gap: "14px",
+          }}
+        >
+          {data.actions.map(
+            (item) => (
+              <ActionCard
+                key={`${item.source}-${item.id}`}
+                item={item}
+                organizationId={
+                  organizationId
+                }
+                onExecuted={
+                  loadActionCenter
+                }
+              />
+            ),
+          )}
+        </section>
+      )}
     </main>
   );
 }
