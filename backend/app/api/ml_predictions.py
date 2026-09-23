@@ -19,11 +19,24 @@ router = APIRouter(
 )
 
 
+class CustomerPredictionData(BaseModel):
+    tenure: float | None = None
+    monthly_charges: float | None = None
+    total_charges: float | None = None
+    contract: str | None = None
+    payment_method: str | None = None
+    internet_service: str | None = None
+    online_security: str | None = None
+    tech_support: str | None = None
+
+
 class ChurnPredictionRequest(BaseModel):
-    customer_data: dict
+    customer_data: CustomerPredictionData
 
 
-@router.post("/customers/{customer_id}/predict")
+@router.post(
+    "/customers/{customer_id}/predict"
+)
 def predict_customer(
     customer_id: UUID,
     organization_id: UUID,
@@ -56,11 +69,26 @@ def predict_customer(
             ),
         )
 
+    customer_data = (
+        data.customer_data.model_dump(
+            exclude_none=True
+        )
+    )
+
+    if not customer_data:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "At least one customer "
+                "prediction feature is required."
+            ),
+        )
+
     try:
         probability, risk_level = (
             predict_customer_churn(
                 model=model,
-                customer_data=data.customer_data,
+                customer_data=customer_data,
             )
         )
 
