@@ -44,6 +44,25 @@ export type CampaignExecutionResponse = {
 };
 
 
+export type CampaignAnalytics = {
+  campaign_id: string;
+  campaign_name: string;
+  status: string;
+  target_segment: string | null;
+  targeted_customers: number;
+  actions_created: number;
+  actions_executed: number;
+  outcomes_recorded: number;
+  saved: number;
+  not_saved: number;
+  no_response: number;
+  unknown: number;
+  resolved_outcomes: number;
+  save_rate: number;
+  revenue_saved: number;
+};
+
+
 export async function getCampaigns(
   organizationId: string,
 ): Promise<Campaign[]> {
@@ -123,5 +142,19 @@ export async function executeCampaign(
     {
       method: "POST",
     },
+  );
+}
+
+
+export async function getCampaignAnalytics(
+  campaignId: string,
+  organizationId: string,
+): Promise<CampaignAnalytics> {
+  return apiRequest<CampaignAnalytics>(
+    `/campaigns/${encodeURIComponent(
+      campaignId,
+    )}/analytics?organization_id=${encodeURIComponent(
+      organizationId,
+    )}`,
   );
 }
