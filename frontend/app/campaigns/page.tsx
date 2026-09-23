@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   createCampaign,
+  executeCampaign,
   getCampaigns,
   targetCampaignCustomers,
   updateCampaignStatus,
@@ -12,12 +13,34 @@ import {
 
 
 const ACTION_TYPES = [
-  "retention_outreach",
-  "customer_engagement",
-  "support_outreach",
-  "review_plan_value",
-  "contract_retention",
-  "payment_support",
+  {
+    value: "retention_outreach",
+    label: "Retention Outreach",
+  },
+  {
+    value: "review_plan_value",
+    label: "Review Plan Value",
+  },
+  {
+    value: "contract_retention",
+    label: "Contract Retention",
+  },
+  {
+    value: "customer_engagement",
+    label: "Customer Engagement",
+  },
+  {
+    value: "payment_support",
+    label: "Payment Support",
+  },
+  {
+    value: "security_value_offer",
+    label: "Security Value Offer",
+  },
+  {
+    value: "support_outreach",
+    label: "Support Outreach",
+  },
 ];
 
 
@@ -50,6 +73,9 @@ function StatusBadge({
 }: {
   status: string;
 }) {
+  const normalized =
+    status.toLowerCase();
+
   const styles: Record<
     string,
     {
@@ -80,8 +106,10 @@ function StatusBadge({
   };
 
   const style =
-    styles[status] ||
-    styles.draft;
+    styles[normalized] || {
+      background: "#f1f5f9",
+      color: "#475569",
+    };
 
   return (
     <span
@@ -91,14 +119,32 @@ function StatusBadge({
         borderRadius: "999px",
         fontSize: "12px",
         fontWeight: 600,
-        background:
-          style.background,
+        background: style.background,
         color: style.color,
-        textTransform:
-          "capitalize",
+        textTransform: "capitalize",
       }}
     >
-      {status}
+      {normalized}
+    </span>
+  );
+}
+
+
+function ActionLabel({
+  actionType,
+}: {
+  actionType: string;
+}) {
+  return (
+    <span
+      style={{
+        textTransform: "capitalize",
+      }}
+    >
+      {actionType.replace(
+        /_/g,
+        " ",
+      )}
     </span>
   );
 }
@@ -121,9 +167,16 @@ export default function CampaignsPage() {
   ] = useState(true);
 
   const [
-    creating,
-    setCreating,
+    submitting,
+    setSubmitting,
   ] = useState(false);
+
+  const [
+    executingCampaignId,
+    setExecutingCampaignId,
+  ] = useState<string | null>(
+    null,
+  );
 
   const [
     error,
@@ -149,14 +202,14 @@ export default function CampaignsPage() {
     actionType,
     setActionType,
   ] = useState(
-    ACTION_TYPES[0],
+    "retention_outreach",
   );
 
   const [
-    segment,
-    setSegment,
+    targetSegment,
+    setTargetSegment,
   ] = useState(
-    SEGMENTS[0].value,
+    "high_risk",
   );
 
 
@@ -189,12 +242,12 @@ export default function CampaignsPage() {
       setLoading(true);
       setError(null);
 
-      const data =
+      const result =
         await getCampaigns(
           organizationId,
         );
 
-      setCampaigns(data);
+      setCampaigns(result);
     } catch (campaignError) {
       setError(
         campaignError instanceof Error
@@ -213,9 +266,16 @@ export default function CampaignsPage() {
 
 
   async function handleCreateCampaign(
-    event: FormEvent<HTMLFormElement>,
+    event: React.FormEvent,
   ) {
     event.preventDefault();
+
+    if (!organizationId) {
+      setError(
+        "Organization is not selected.",
+      );
+      return;
+    }
 
     if (!name.trim()) {
       setError(
@@ -225,7 +285,7 @@ export default function CampaignsPage() {
     }
 
     try {
-      setCreating(true);
+      setSubmitting(true);
       setError(null);
       setSuccess(null);
 
@@ -240,20 +300,21 @@ export default function CampaignsPage() {
           action_type:
             actionType,
           target_segment:
-            segment,
+            targetSegment,
         });
 
-      await targetCampaignCustomers(
-        campaign.id,
-        organizationId,
-        segment,
-      );
+      const targetResult =
+        await targetCampaignCustomers(
+          campaign.id,
+          organizationId,
+          targetSegment,
+        );
 
       setName("");
       setDescription("");
 
       setSuccess(
-        "Campaign created and customers targeted successfully.",
+        `Campaign created and ${targetResult.added} customers targeted.`,
       );
 
       await loadCampaigns();
@@ -264,7 +325,7 @@ export default function CampaignsPage() {
           : "Unable to create campaign.",
       );
     } finally {
-      setCreating(false);
+      setSubmitting(false);
     }
   }
 
@@ -284,7 +345,7 @@ export default function CampaignsPage() {
       );
 
       setSuccess(
-        `Campaign moved to ${status}.`,
+        `Campaign ${status}.`,
       );
 
       await loadCampaigns();
@@ -294,6 +355,39 @@ export default function CampaignsPage() {
           ? statusError.message
           : "Unable to update campaign.",
       );
+    }
+  }
+
+
+  async function handleExecuteCampaign(
+    campaign: Campaign,
+  ) {
+    try {
+      setExecutingCampaignId(
+        campaign.id,
+      );
+      setError(null);
+      setSuccess(null);
+
+      const result =
+        await executeCampaign(
+          campaign.id,
+          organizationId,
+        );
+
+      setSuccess(
+        `Campaign executed. ${result.created_actions} retention actions created.`,
+      );
+
+      await loadCampaigns();
+    } catch (executionError) {
+      setError(
+        executionError instanceof Error
+          ? executionError.message
+          : "Unable to execute campaign.",
+      );
+    } finally {
+      setExecutingCampaignId(null);
     }
   }
 
@@ -379,7 +473,9 @@ export default function CampaignsPage() {
           }}
         >
           Create targeted retention
-          campaigns for customer segments.
+          campaigns and turn risk
+          segments into actionable
+          customer interventions.
         </p>
       </header>
 
@@ -388,12 +484,13 @@ export default function CampaignsPage() {
         <div
           style={{
             marginBottom: "16px",
-            padding: "12px",
+            padding: "12px 14px",
             background: "#fef2f2",
             border:
               "1px solid #fecaca",
-            borderRadius: "8px",
+            borderRadius: "10px",
             color: "#991b1b",
+            fontSize: "14px",
           }}
         >
           {error}
@@ -405,12 +502,13 @@ export default function CampaignsPage() {
         <div
           style={{
             marginBottom: "16px",
-            padding: "12px",
+            padding: "12px 14px",
             background: "#f0fdf4",
             border:
               "1px solid #bbf7d0",
-            borderRadius: "8px",
+            borderRadius: "10px",
             color: "#166534",
+            fontSize: "14px",
           }}
         >
           {success}
@@ -424,91 +522,39 @@ export default function CampaignsPage() {
           border:
             "1px solid #e2e8f0",
           borderRadius: "12px",
-          padding: "22px",
+          padding: "20px",
           marginBottom: "28px",
         }}
       >
         <h2
           style={{
-            margin:
-              "0 0 18px",
-            fontSize: "20px",
+            margin: 0,
+            fontSize: "19px",
+            color: "#0f172a",
           }}
         >
           Create Campaign
         </h2>
 
+        <p
+          style={{
+            marginTop: "6px",
+            marginBottom: "20px",
+            color: "#64748b",
+            fontSize: "14px",
+          }}
+        >
+          Select a risk segment and
+          define the retention action
+          that should be created for
+          targeted customers.
+        </p>
+
         <form
           onSubmit={
             handleCreateCampaign
           }
-          style={{
-            display: "grid",
-            gap: "14px",
-          }}
         >
-          <label>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#475569",
-                marginBottom: "6px",
-              }}
-            >
-              Campaign name
-            </div>
-
-            <input
-              value={name}
-              onChange={(event) =>
-                setName(
-                  event.target.value,
-                )
-              }
-              placeholder="High Risk Retention Outreach"
-              style={{
-                width: "100%",
-                padding: "11px",
-                border:
-                  "1px solid #cbd5e1",
-                borderRadius: "8px",
-              }}
-            />
-          </label>
-
-
-          <label>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#475569",
-                marginBottom: "6px",
-              }}
-            >
-              Description
-            </div>
-
-            <textarea
-              value={description}
-              onChange={(event) =>
-                setDescription(
-                  event.target.value,
-                )
-              }
-              placeholder="Describe the retention campaign..."
-              rows={3}
-              style={{
-                width: "100%",
-                padding: "11px",
-                border:
-                  "1px solid #cbd5e1",
-                borderRadius: "8px",
-                resize: "vertical",
-              }}
-            />
-          </label>
-
-
           <div
             style={{
               display: "grid",
@@ -520,8 +566,37 @@ export default function CampaignsPage() {
             <label>
               <div
                 style={{
-                  fontSize: "13px",
-                  color: "#475569",
+                  fontSize: "12px",
+                  color: "#64748b",
+                  marginBottom: "6px",
+                }}
+              >
+                Campaign name
+              </div>
+
+              <input
+                value={name}
+                onChange={(event) =>
+                  setName(
+                    event.target.value,
+                  )
+                }
+                placeholder="High Risk Retention"
+                style={{
+                  width: "100%",
+                  padding: "10px 11px",
+                  border:
+                    "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                }}
+              />
+            </label>
+
+            <label>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
                   marginBottom: "6px",
                 }}
               >
@@ -537,7 +612,7 @@ export default function CampaignsPage() {
                 }
                 style={{
                   width: "100%",
-                  padding: "11px",
+                  padding: "10px 11px",
                   border:
                     "1px solid #cbd5e1",
                   borderRadius: "8px",
@@ -546,27 +621,27 @@ export default function CampaignsPage() {
                 }}
               >
                 {ACTION_TYPES.map(
-                  (type) => (
+                  (action) => (
                     <option
-                      key={type}
-                      value={type}
+                      key={
+                        action.value
+                      }
+                      value={
+                        action.value
+                      }
                     >
-                      {type.replace(
-                        /_/g,
-                        " ",
-                      )}
+                      {action.label}
                     </option>
                   ),
                 )}
               </select>
             </label>
 
-
             <label>
               <div
                 style={{
-                  fontSize: "13px",
-                  color: "#475569",
+                  fontSize: "12px",
+                  color: "#64748b",
                   marginBottom: "6px",
                 }}
               >
@@ -574,15 +649,17 @@ export default function CampaignsPage() {
               </div>
 
               <select
-                value={segment}
+                value={
+                  targetSegment
+                }
                 onChange={(event) =>
-                  setSegment(
+                  setTargetSegment(
                     event.target.value,
                   )
                 }
                 style={{
                   width: "100%",
-                  padding: "11px",
+                  padding: "10px 11px",
                   border:
                     "1px solid #cbd5e1",
                   borderRadius: "8px",
@@ -591,12 +668,16 @@ export default function CampaignsPage() {
                 }}
               >
                 {SEGMENTS.map(
-                  (item) => (
+                  (segment) => (
                     <option
-                      key={item.value}
-                      value={item.value}
+                      key={
+                        segment.value
+                      }
+                      value={
+                        segment.value
+                      }
                     >
-                      {item.label}
+                      {segment.label}
                     </option>
                   ),
                 )}
@@ -604,29 +685,62 @@ export default function CampaignsPage() {
             </label>
           </div>
 
+          <label
+            style={{
+              display: "block",
+              marginTop: "14px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+                marginBottom: "6px",
+              }}
+            >
+              Description
+            </div>
+
+            <textarea
+              value={description}
+              onChange={(event) =>
+                setDescription(
+                  event.target.value,
+                )
+              }
+              placeholder="Describe what this campaign should accomplish."
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "10px 11px",
+                border:
+                  "1px solid #cbd5e1",
+                borderRadius: "8px",
+                resize: "vertical",
+              }}
+            />
+          </label>
 
           <button
             type="submit"
-            disabled={creating}
+            disabled={submitting}
             style={{
-              width: "fit-content",
+              marginTop: "16px",
               border: "none",
               borderRadius: "8px",
-              padding:
-                "11px 18px",
+              padding: "11px 18px",
               background:
-                creating
+                submitting
                   ? "#94a3b8"
                   : "#0f172a",
               color: "#ffffff",
-              cursor:
-                creating
-                  ? "not-allowed"
-                  : "pointer",
+              cursor: submitting
+                ? "not-allowed"
+                : "pointer",
               fontWeight: 600,
             }}
           >
-            {creating
+            {submitting
               ? "Creating..."
               : "Create Campaign"}
           </button>
@@ -635,21 +749,50 @@ export default function CampaignsPage() {
 
 
       <section>
-        <h2
+        <div
           style={{
-            margin:
-              "0 0 14px",
-            fontSize: "20px",
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems:
+              "center",
+            marginBottom: "14px",
+            gap: "12px",
+            flexWrap: "wrap",
           }}
         >
-          Campaigns
-        </h2>
+          <div>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: "20px",
+                color: "#0f172a",
+              }}
+            >
+              Campaigns
+            </h2>
+
+            <p
+              style={{
+                margin:
+                  "5px 0 0",
+                color: "#64748b",
+                fontSize: "14px",
+              }}
+            >
+              {campaigns.length} campaign
+              {campaigns.length === 1
+                ? ""
+                : "s"}
+            </p>
+          </div>
+        </div>
 
 
         {campaigns.length === 0 ? (
           <div
             style={{
-              padding: "36px 20px",
+              padding: "40px 20px",
               textAlign: "center",
               background: "#ffffff",
               border:
@@ -664,7 +807,7 @@ export default function CampaignsPage() {
           <div
             style={{
               display: "grid",
-              gap: "12px",
+              gap: "14px",
             }}
           >
             {campaigns.map(
@@ -678,7 +821,7 @@ export default function CampaignsPage() {
                       "1px solid #e2e8f0",
                     borderRadius:
                       "12px",
-                    padding: "18px",
+                    padding: "20px",
                   }}
                 >
                   <div
@@ -693,24 +836,49 @@ export default function CampaignsPage() {
                         "wrap",
                     }}
                   >
-                    <div>
-                      <h3
+                    <div
+                      style={{
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <div
                         style={{
-                          margin: 0,
-                          fontSize:
-                            "18px",
-                          color:
-                            "#0f172a",
+                          display:
+                            "flex",
+                          alignItems:
+                            "center",
+                          gap: "10px",
+                          flexWrap:
+                            "wrap",
                         }}
                       >
-                        {campaign.name}
-                      </h3>
+                        <h3
+                          style={{
+                            margin: 0,
+                            fontSize:
+                              "18px",
+                            color:
+                              "#0f172a",
+                          }}
+                        >
+                          {
+                            campaign.name
+                          }
+                        </h3>
+
+                        <StatusBadge
+                          status={
+                            campaign.status
+                          }
+                        />
+                      </div>
 
                       {campaign.description && (
                         <p
                           style={{
                             margin:
-                              "7px 0 0",
+                              "8px 0 0",
                             color:
                               "#64748b",
                             fontSize:
@@ -724,62 +892,125 @@ export default function CampaignsPage() {
                       )}
                     </div>
 
-                    <StatusBadge
-                      status={
-                        campaign.status
-                      }
-                    />
+                    <div
+                      style={{
+                        fontSize:
+                          "13px",
+                        color:
+                          "#64748b",
+                      }}
+                    >
+                      {
+                        campaign.customer_count ??
+                        0
+                      }{" "}
+                      customers
+                    </div>
                   </div>
 
 
                   <div
                     style={{
-                      display: "flex",
-                      gap: "18px",
+                      display:
+                        "flex",
+                      gap: "20px",
                       flexWrap:
                         "wrap",
                       marginTop:
                         "16px",
-                      fontSize:
-                        "13px",
-                      color:
-                        "#64748b",
+                      paddingTop:
+                        "16px",
+                      borderTop:
+                        "1px solid #f1f5f9",
                     }}
                   >
-                    <span>
-                      Action:{" "}
-                      {campaign.action_type.replace(
-                        /_/g,
-                        " ",
-                      )}
-                    </span>
+                    <div>
+                      <div
+                        style={{
+                          fontSize:
+                            "11px",
+                          color:
+                            "#94a3b8",
+                          textTransform:
+                            "uppercase",
+                          letterSpacing:
+                            "0.04em",
+                        }}
+                      >
+                        Action
+                      </div>
 
-                    <span>
-                      Segment:{" "}
-                      {campaign.target_segment
-                        ? campaign.target_segment.replace(
-                            /_/g,
-                            " ",
-                          )
-                        : "Not selected"}
-                    </span>
+                      <div
+                        style={{
+                          marginTop:
+                            "4px",
+                          fontSize:
+                            "14px",
+                          fontWeight:
+                            600,
+                          color:
+                            "#334155",
+                        }}
+                      >
+                        <ActionLabel
+                          actionType={
+                            campaign.action_type
+                          }
+                        />
+                      </div>
+                    </div>
 
-                    <span>
-                      Customers:{" "}
-                      {campaign.customer_count ??
-                        0}
-                    </span>
+                    <div>
+                      <div
+                        style={{
+                          fontSize:
+                            "11px",
+                          color:
+                            "#94a3b8",
+                          textTransform:
+                            "uppercase",
+                          letterSpacing:
+                            "0.04em",
+                        }}
+                      >
+                        Segment
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop:
+                            "4px",
+                          fontSize:
+                            "14px",
+                          fontWeight:
+                            600,
+                          color:
+                            "#334155",
+                          textTransform:
+                            "capitalize",
+                        }}
+                      >
+                        {(
+                          campaign.target_segment ||
+                          "Not set"
+                        ).replace(
+                          /_/g,
+                          " ",
+                        )}
+                      </div>
+                    </div>
                   </div>
 
 
                   <div
                     style={{
-                      display: "flex",
+                      display:
+                        "flex",
                       gap: "8px",
-                      marginTop:
-                        "16px",
                       flexWrap:
                         "wrap",
+                      marginTop:
+                        "18px",
                     }}
                   >
                     {campaign.status ===
@@ -796,17 +1027,17 @@ export default function CampaignsPage() {
                           border:
                             "none",
                           borderRadius:
-                            "7px",
+                            "8px",
                           padding:
-                            "8px 12px",
+                            "9px 14px",
                           background:
                             "#16a34a",
                           color:
                             "#ffffff",
-                          fontWeight:
-                            600,
                           cursor:
                             "pointer",
+                          fontWeight:
+                            600,
                         }}
                       >
                         Activate
@@ -815,33 +1046,75 @@ export default function CampaignsPage() {
 
                     {campaign.status ===
                       "active" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleStatusChange(
-                            campaign,
-                            "paused",
-                          )
-                        }
-                        style={{
-                          border:
-                            "1px solid #cbd5e1",
-                          borderRadius:
-                            "7px",
-                          padding:
-                            "8px 12px",
-                          background:
-                            "#ffffff",
-                          color:
-                            "#334155",
-                          fontWeight:
-                            600,
-                          cursor:
-                            "pointer",
-                        }}
-                      >
-                        Pause
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleExecuteCampaign(
+                              campaign,
+                            )
+                          }
+                          disabled={
+                            executingCampaignId ===
+                            campaign.id
+                          }
+                          style={{
+                            border:
+                              "none",
+                            borderRadius:
+                              "8px",
+                            padding:
+                              "9px 14px",
+                            background:
+                              executingCampaignId ===
+                              campaign.id
+                                ? "#94a3b8"
+                                : "#2563eb",
+                            color:
+                              "#ffffff",
+                            cursor:
+                              executingCampaignId ===
+                              campaign.id
+                                ? "not-allowed"
+                                : "pointer",
+                            fontWeight:
+                              600,
+                          }}
+                        >
+                          {executingCampaignId ===
+                          campaign.id
+                            ? "Executing..."
+                            : "Execute Campaign"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStatusChange(
+                              campaign,
+                              "paused",
+                            )
+                          }
+                          style={{
+                            border:
+                              "1px solid #cbd5e1",
+                            borderRadius:
+                              "8px",
+                            padding:
+                              "9px 14px",
+                            background:
+                              "#ffffff",
+                            color:
+                              "#334155",
+                            cursor:
+                              "pointer",
+                            fontWeight:
+                              600,
+                          }}
+                        >
+                          Pause
+                        </button>
+                      </>
                     )}
 
                     {campaign.status ===
@@ -858,17 +1131,17 @@ export default function CampaignsPage() {
                           border:
                             "none",
                           borderRadius:
-                            "7px",
+                            "8px",
                           padding:
-                            "8px 12px",
+                            "9px 14px",
                           background:
-                            "#2563eb",
+                            "#16a34a",
                           color:
                             "#ffffff",
-                          fontWeight:
-                            600,
                           cursor:
                             "pointer",
+                          fontWeight:
+                            600,
                         }}
                       >
                         Resume
@@ -891,17 +1164,17 @@ export default function CampaignsPage() {
                           border:
                             "1px solid #cbd5e1",
                           borderRadius:
-                            "7px",
+                            "8px",
                           padding:
-                            "8px 12px",
+                            "9px 14px",
                           background:
                             "#ffffff",
                           color:
                             "#334155",
-                          fontWeight:
-                            600,
                           cursor:
                             "pointer",
+                          fontWeight:
+                            600,
                         }}
                       >
                         Complete
