@@ -1,33 +1,43 @@
 def generate_recommendation(
     risk_factors: list[dict],
 ) -> dict:
+    """
+    Generate a deterministic retention recommendation
+    from the strongest identified risk factor.
+    """
+
     if not risk_factors:
         return {
             "action_type": "review_customer",
-            "reason": "Review the customer for available retention opportunities.",
+            "reason": (
+                "Review the customer for available "
+                "retention opportunities."
+            ),
         }
 
     top_factor = risk_factors[0]
 
-    feature = top_factor.get(
-        "feature",
-        "",
+    feature = str(
+        top_factor.get("feature", "")
     ).lower()
 
-    impact = float(
-        top_factor.get(
-            "impact",
-            0,
-        )
+    label = str(
+        top_factor.get("label", "A key customer factor")
     )
 
+    impact = float(
+        top_factor.get("impact", 0)
+    )
+
+    # A negative SHAP value means the strongest factor
+    # is currently reducing churn risk.
     if impact <= 0:
         return {
             "action_type": "engage_customer",
             "reason": (
-                "The strongest identified factors are "
-                "currently reducing churn risk. Maintain "
-                "engagement and monitor for changes."
+                f"{label} is currently associated with "
+                "lower churn risk. Maintain engagement "
+                "and continue monitoring the customer."
             ),
         }
 
@@ -46,8 +56,8 @@ def generate_recommendation(
             "action_type": "contract_retention",
             "reason": (
                 "Contract characteristics are contributing "
-                "to churn risk. Consider a suitable longer-term "
-                "plan or renewal conversation."
+                "to churn risk. Consider a suitable renewal "
+                "or longer-term plan conversation."
             ),
         }
 
@@ -56,7 +66,8 @@ def generate_recommendation(
             "action_type": "customer_engagement",
             "reason": (
                 "Customer tenure is a significant risk factor. "
-                "Consider proactive engagement and onboarding/value reinforcement."
+                "Consider proactive engagement and "
+                "value reinforcement."
             ),
         }
 
@@ -65,7 +76,8 @@ def generate_recommendation(
             "action_type": "payment_support",
             "reason": (
                 "Payment method is contributing to churn risk. "
-                "Review payment experience and available payment options."
+                "Review the payment experience and available "
+                "payment options."
             ),
         }
 
@@ -73,8 +85,9 @@ def generate_recommendation(
         return {
             "action_type": "security_value_offer",
             "reason": (
-                "Online security is associated with the customer's "
-                "risk profile. Consider highlighting relevant security value."
+                "Online security is a relevant risk factor. "
+                "Consider highlighting relevant security "
+                "features and value."
             ),
         }
 
@@ -90,8 +103,7 @@ def generate_recommendation(
     return {
         "action_type": "retention_outreach",
         "reason": (
-            f"{top_factor.get('label', 'A key customer factor')} "
-            "is contributing to churn risk. Consider proactive "
-            "retention outreach."
+            f"{label} is contributing to higher churn risk. "
+            "Consider proactive retention outreach."
         ),
     }
