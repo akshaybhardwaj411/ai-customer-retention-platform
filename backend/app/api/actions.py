@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.action_outcome import ActionOutcome
 from app.models.customer import Customer
 from app.models.recommendation import Recommendation
 from app.models.retention_action import RetentionAction
@@ -109,7 +108,7 @@ def execute_action(
     action.status = "completed"
 
     # --------------------------------------------------
-    # Mark matching pending recommendation as completed
+    # Mark matching recommendation as completed
     # --------------------------------------------------
 
     recommendation = (
@@ -134,18 +133,12 @@ def execute_action(
         recommendation.status = "completed"
 
     # --------------------------------------------------
-    # Record execution outcome
+    # IMPORTANT:
+    # Do not create an ActionOutcome here.
+    #
+    # Execution and business outcome are different
+    # events.
     # --------------------------------------------------
-
-    outcome = ActionOutcome(
-        organization_id=action.organization_id,
-        action_id=action.id,
-        customer_id=action.customer_id,
-        outcome="executed",
-        revenue_saved=None,
-    )
-
-    db.add(outcome)
 
     db.commit()
     db.refresh(action)
@@ -161,5 +154,6 @@ def execute_action(
         "recommendation":
             action.recommendation,
         "message":
-            "Retention action executed and recommendation updated.",
+            "Retention action executed successfully. "
+            "Record the customer outcome separately.",
     }
