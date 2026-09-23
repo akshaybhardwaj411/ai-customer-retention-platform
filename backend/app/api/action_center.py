@@ -36,6 +36,10 @@ def get_action_center(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
+    # --------------------------------------------------
+    # Pending retention actions
+    # --------------------------------------------------
+
     actions = (
         db.query(RetentionAction)
         .filter(
@@ -46,6 +50,10 @@ def get_action_center(
         )
         .all()
     )
+
+    # --------------------------------------------------
+    # Pending AI recommendations
+    # --------------------------------------------------
 
     recommendations = (
         db.query(Recommendation)
@@ -58,16 +66,20 @@ def get_action_center(
         .all()
     )
 
-    prediction_map = {}
+    # --------------------------------------------------
+    # Latest prediction per customer
+    # --------------------------------------------------
 
     predictions = (
         db.query(Prediction)
         .filter(
             Prediction.organization_id
-            == organization_id,
+            == organization_id
         )
         .all()
     )
+
+    prediction_map = {}
 
     for prediction in predictions:
         customer_id = str(
@@ -86,6 +98,10 @@ def get_action_center(
             prediction_map[
                 customer_id
             ] = prediction
+
+    # --------------------------------------------------
+    # Retention action items
+    # --------------------------------------------------
 
     action_items = []
 
@@ -106,22 +122,23 @@ def get_action_center(
                 "customer_id": str(
                     action.customer_id
                 ),
-                "action_type": (
-                    action.action_type
-                ),
+                "action_type": action.action_type,
                 "status": action.status,
-                "recommendation": (
-                    action.recommendation
-                ),
+                "recommendation":
+                    action.recommendation,
                 "risk_level": risk_level,
-                "priority": _priority_value(
-                    risk_level
-                ),
-                "source": (
-                    "retention_action"
-                ),
+                "priority":
+                    _priority_value(
+                        risk_level
+                    ),
+                "source":
+                    "retention_action",
             }
         )
+
+    # --------------------------------------------------
+    # AI recommendation items
+    # --------------------------------------------------
 
     recommendation_items = []
 
@@ -146,24 +163,26 @@ def get_action_center(
                 "customer_id": str(
                     recommendation.customer_id
                 ),
-                "action_type": (
-                    recommendation.action_type
-                ),
-                "status": (
-                    recommendation.status
-                ),
-                "recommendation": (
-                    recommendation.reason
-                ),
-                "risk_level": risk_level,
-                "priority": _priority_value(
-                    risk_level
-                ),
-                "source": (
-                    "ai_recommendation"
-                ),
+                "action_type":
+                    recommendation.action_type,
+                "status":
+                    recommendation.status,
+                "recommendation":
+                    recommendation.reason,
+                "risk_level":
+                    risk_level,
+                "priority":
+                    _priority_value(
+                        risk_level
+                    ),
+                "source":
+                    "ai_recommendation",
             }
         )
+
+    # --------------------------------------------------
+    # Combine and prioritize
+    # --------------------------------------------------
 
     combined = (
         action_items
@@ -173,11 +192,48 @@ def get_action_center(
     combined.sort(
         key=lambda item: (
             item["priority"],
+            item["action_type"],
         ),
         reverse=True,
     )
 
+    # --------------------------------------------------
+    # Summary
+    # --------------------------------------------------
+
+    critical = sum(
+        1
+        for item in combined
+        if item["risk_level"]
+        == "critical"
+    )
+
+    high = sum(
+        1
+        for item in combined
+        if item["risk_level"]
+        == "high"
+    )
+
+    medium = sum(
+        1
+        for item in combined
+        if item["risk_level"]
+        == "medium"
+    )
+
+    low = sum(
+        1
+        for item in combined
+        if item["risk_level"]
+        == "low"
+    )
+
     return {
         "total_actions": len(combined),
+        "critical": critical,
+        "high": high,
+        "medium": medium,
+        "low": low,
         "actions": combined,
     }
