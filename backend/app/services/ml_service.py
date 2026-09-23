@@ -44,6 +44,14 @@ def load_model_metadata():
     )
 
 
+def is_model_ready() -> bool:
+    return (
+        MODEL_PATH.exists()
+        and FEATURES_PATH.exists()
+        and METADATA_PATH.exists()
+    )
+
+
 def prepare_prediction_features(
     customer_data: dict,
     feature_columns: list[str],
@@ -69,6 +77,13 @@ def predict_customer_churn(
     model,
     customer_data: dict,
 ) -> tuple[float, str]:
+    if not is_model_ready():
+        raise FileNotFoundError(
+            "ML model is not fully ready. "
+            "Model, feature columns, and "
+            "metadata are required."
+        )
+
     feature_columns = (
         load_feature_columns()
     )
