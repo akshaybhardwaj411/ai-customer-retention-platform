@@ -1422,6 +1422,28 @@ export default function CampaignsPage() {
                             ? "Refresh Analytics"
                             : "View Analytics"}
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.location.href =
+                            `/campaigns/${encodeURIComponent(
+                              campaign.id,
+                            )}`
+                        }
+                        style={{
+                          border:
+                            "1px solid #cbd5e1",
+                          borderRadius: "8px",
+                          padding: "9px 14px",
+                          background: "#ffffff",
+                          color: "#334155",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        View Customers
+                      </button>
                     </div>
 
 
