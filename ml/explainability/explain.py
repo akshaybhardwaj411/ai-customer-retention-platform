@@ -5,16 +5,17 @@ def explain_prediction(
     model,
     customer_data: pd.DataFrame,
 ) -> list[dict]:
-    """
-    Return feature importance information for a prediction.
-    """
-
-    classifier = model.named_steps.get("classifier")
+    classifier = model.named_steps.get(
+        "classifier"
+    )
 
     if classifier is None:
         return []
 
-    if not hasattr(classifier, "coef_"):
+    if not hasattr(
+        classifier,
+        "coef_",
+    ):
         return []
 
     features = pd.get_dummies(
@@ -24,7 +25,9 @@ def explain_prediction(
 
     features = features.fillna(0)
 
-    coefficients = classifier.coef_[0]
+    coefficients = (
+        classifier.coef_[0]
+    )
 
     explanations = []
 
@@ -35,7 +38,9 @@ def explain_prediction(
         explanations.append(
             {
                 "feature": feature,
-                "impact": float(coefficient),
+                "impact": float(
+                    coefficient
+                ),
                 "direction": (
                     "increases_risk"
                     if coefficient > 0
@@ -45,7 +50,9 @@ def explain_prediction(
         )
 
     explanations.sort(
-        key=lambda item: abs(item["impact"]),
+        key=lambda item: abs(
+            item["impact"]
+        ),
         reverse=True,
     )
 
