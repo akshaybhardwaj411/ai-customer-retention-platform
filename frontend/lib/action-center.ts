@@ -4,6 +4,8 @@ import { apiRequest } from "./api";
 export type ActionCenterItem = {
   id: string;
   customer_id: string;
+  customer_name: string;
+  customer_email: string | null;
   action_type: string;
   status: string;
   recommendation: string | null;
