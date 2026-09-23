@@ -35,6 +35,11 @@ class CampaignCustomer(Base):
         nullable=False,
     )
 
+    retention_action_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
     status = Column(
         String(50),
         nullable=False,
