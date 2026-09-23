@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, DateTime, Numeric, String
+from sqlalchemy import Column, DateTime, JSON, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -33,6 +33,11 @@ class Prediction(Base):
 
     risk_level = Column(
         String(50),
+        nullable=True,
+    )
+
+    customer_features = Column(
+        JSON,
         nullable=True,
     )
 
