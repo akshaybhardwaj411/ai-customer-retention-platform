@@ -3,6 +3,10 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
+from app.services.explainability_service import (
+    explain_customer_prediction,
+)
+
 
 MODEL_PATH = Path(
     "ml/models/churn_model.joblib"
@@ -113,6 +117,31 @@ def predict_customer_churn(
     return (
         probability,
         risk_level,
+    )
+
+
+def explain_customer_churn(
+    model,
+    customer_data: dict,
+) -> list[dict]:
+    if not is_model_ready():
+        raise FileNotFoundError(
+            "ML model is not fully ready."
+        )
+
+    feature_columns = (
+        load_feature_columns()
+    )
+
+    if feature_columns is None:
+        raise FileNotFoundError(
+            "Trained feature columns were not found."
+        )
+
+    return explain_customer_prediction(
+        model=model,
+        customer_data=customer_data,
+        feature_columns=feature_columns,
     )
 
 
