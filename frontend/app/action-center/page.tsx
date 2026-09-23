@@ -13,6 +13,17 @@ import {
   executeRetentionAction,
 } from "@/lib/actions";
 
+import {
+  createActionOutcome,
+} from "@/lib/outcomes";
+
+
+type OutcomeValue =
+  | "saved"
+  | "not_saved"
+  | "no_response"
+  | "unknown";
+
 
 function RiskBadge({
   level,
@@ -61,8 +72,7 @@ function RiskBadge({
         borderRadius: "999px",
         fontSize: "12px",
         fontWeight: 600,
-        background:
-          style.background,
+        background: style.background,
         color: style.color,
         textTransform: "capitalize",
       }}
@@ -76,16 +86,31 @@ function RiskBadge({
 function ActionCard({
   item,
   organizationId,
-  onExecuted,
+  onUpdated,
 }: {
   item: ActionCenterItem;
   organizationId: string;
-  onExecuted: () => void;
+  onUpdated: () => void;
 }) {
   const [executing, setExecuting] =
     useState(false);
 
+  const [recordingOutcome, setRecordingOutcome] =
+    useState(false);
+
+  const [executed, setExecuted] =
+    useState(item.status === "completed");
+
+  const [outcome, setOutcome] =
+    useState<OutcomeValue | "">("");
+
+  const [revenueSaved, setRevenueSaved] =
+    useState("");
+
   const [error, setError] =
+    useState<string | null>(null);
+
+  const [success, setSuccess] =
     useState<string | null>(null);
 
 
@@ -93,13 +118,18 @@ function ActionCard({
     try {
       setExecuting(true);
       setError(null);
+      setSuccess(null);
 
       await executeRetentionAction(
         item.id,
         organizationId,
       );
 
-      onExecuted();
+      setExecuted(true);
+
+      setSuccess(
+        "Action executed. Record the customer outcome below.",
+      );
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -112,12 +142,66 @@ function ActionCard({
   }
 
 
+  async function handleRecordOutcome() {
+    if (!outcome) {
+      setError(
+        "Please select an outcome.",
+      );
+      return;
+    }
+
+    if (
+      outcome === "saved" &&
+      revenueSaved &&
+      Number(revenueSaved) < 0
+    ) {
+      setError(
+        "Revenue saved cannot be negative.",
+      );
+      return;
+    }
+
+    try {
+      setRecordingOutcome(true);
+      setError(null);
+      setSuccess(null);
+
+      await createActionOutcome(
+        organizationId,
+        item.id,
+        item.customer_id,
+        outcome,
+        outcome === "saved" &&
+          revenueSaved
+          ? Number(revenueSaved)
+          : undefined,
+      );
+
+      setSuccess(
+        "Outcome recorded successfully.",
+      );
+
+      setOutcome("");
+      setRevenueSaved("");
+
+      onUpdated();
+    } catch (outcomeError) {
+      setError(
+        outcomeError instanceof Error
+          ? outcomeError.message
+          : "Unable to record outcome.",
+      );
+    } finally {
+      setRecordingOutcome(false);
+    }
+  }
+
+
   return (
     <div
       style={{
         background: "#ffffff",
-        border:
-          "1px solid #e2e8f0",
+        border: "1px solid #e2e8f0",
         borderRadius: "12px",
         padding: "20px",
       }}
@@ -125,8 +209,7 @@ function ActionCard({
       <div
         style={{
           display: "flex",
-          justifyContent:
-            "space-between",
+          justifyContent: "space-between",
           alignItems: "flex-start",
           gap: "16px",
           flexWrap: "wrap",
@@ -168,8 +251,7 @@ function ActionCard({
               fontSize: "19px",
               fontWeight: 700,
               color: "#0f172a",
-              textDecoration:
-                "none",
+              textDecoration: "none",
             }}
           >
             {item.customer_name}
@@ -193,8 +275,7 @@ function ActionCard({
               fontSize: "15px",
               fontWeight: 600,
               color: "#334155",
-              textTransform:
-                "capitalize",
+              textTransform: "capitalize",
             }}
           >
             {item.action_type.replace(
@@ -212,8 +293,7 @@ function ActionCard({
               marginTop: "7px",
               fontSize: "13px",
               color: "#2563eb",
-              textDecoration:
-                "none",
+              textDecoration: "none",
               fontWeight: 600,
             }}
           >
@@ -221,31 +301,46 @@ function ActionCard({
           </Link>
         </div>
 
-        <button
-          type="button"
-          onClick={handleExecute}
-          disabled={executing}
-          style={{
-            border: "none",
-            borderRadius: "8px",
-            padding:
-              "10px 16px",
-            background:
-              executing
+        {!executed && (
+          <button
+            type="button"
+            onClick={handleExecute}
+            disabled={executing}
+            style={{
+              border: "none",
+              borderRadius: "8px",
+              padding: "10px 16px",
+              background: executing
                 ? "#94a3b8"
                 : "#0f172a",
-            color: "#ffffff",
-            cursor:
-              executing
+              color: "#ffffff",
+              cursor: executing
                 ? "not-allowed"
                 : "pointer",
-            fontWeight: 600,
-          }}
-        >
-          {executing
-            ? "Executing..."
-            : "Execute Action"}
-        </button>
+              fontWeight: 600,
+            }}
+          >
+            {executing
+              ? "Executing..."
+              : "Execute Action"}
+          </button>
+        )}
+
+        {executed && (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "9px 13px",
+              borderRadius: "8px",
+              background: "#dcfce7",
+              color: "#166534",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
+            Action Executed
+          </span>
+        )}
       </div>
 
       {item.recommendation && (
@@ -274,10 +369,177 @@ function ActionCard({
         </div>
       )}
 
+      {executed && (
+        <div
+          style={{
+            marginTop: "20px",
+            paddingTop: "20px",
+            borderTop:
+              "1px solid #e2e8f0",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: 700,
+              color: "#0f172a",
+              marginBottom: "12px",
+            }}
+          >
+            Record Outcome
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(180px, 1fr) minmax(180px, 1fr) auto",
+              gap: "10px",
+              alignItems: "end",
+            }}
+          >
+            <label
+              style={{
+                display: "block",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  marginBottom: "6px",
+                }}
+              >
+                Customer outcome
+              </div>
+
+              <select
+                value={outcome}
+                onChange={(event) =>
+                  setOutcome(
+                    event.target.value as
+                      | OutcomeValue
+                      | "",
+                  )
+                }
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  border:
+                    "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  background: "#ffffff",
+                }}
+              >
+                <option value="">
+                  Select outcome
+                </option>
+
+                <option value="saved">
+                  Saved
+                </option>
+
+                <option value="not_saved">
+                  Not Saved
+                </option>
+
+                <option value="no_response">
+                  No Response
+                </option>
+
+                <option value="unknown">
+                  Unknown
+                </option>
+              </select>
+            </label>
+
+            <label
+              style={{
+                display: "block",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  marginBottom: "6px",
+                }}
+              >
+                Revenue saved
+              </div>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={revenueSaved}
+                onChange={(event) =>
+                  setRevenueSaved(
+                    event.target.value,
+                  )
+                }
+                disabled={
+                  outcome !== "saved"
+                }
+                placeholder="₹ 0"
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  border:
+                    "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  background:
+                    outcome === "saved"
+                      ? "#ffffff"
+                      : "#f1f5f9",
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={
+                handleRecordOutcome
+              }
+              disabled={
+                recordingOutcome ||
+                !outcome
+              }
+              style={{
+                border: "none",
+                borderRadius: "8px",
+                padding:
+                  "10px 16px",
+                background:
+                  recordingOutcome ||
+                  !outcome
+                    ? "#cbd5e1"
+                    : "#2563eb",
+                color:
+                  recordingOutcome ||
+                  !outcome
+                    ? "#64748b"
+                    : "#ffffff",
+                cursor:
+                  recordingOutcome ||
+                  !outcome
+                    ? "not-allowed"
+                    : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {recordingOutcome
+                ? "Saving..."
+                : "Record Outcome"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div
           style={{
-            marginTop: "12px",
+            marginTop: "14px",
             padding: "10px",
             borderRadius: "8px",
             background: "#fef2f2",
@@ -286,6 +548,21 @@ function ActionCard({
           }}
         >
           {error}
+        </div>
+      )}
+
+      {success && (
+        <div
+          style={{
+            marginTop: "14px",
+            padding: "10px",
+            borderRadius: "8px",
+            background: "#f0fdf4",
+            color: "#166534",
+            fontSize: "13px",
+          }}
+        >
+          {success}
         </div>
       )}
     </div>
@@ -564,7 +841,7 @@ export default function ActionCenterPage() {
                 organizationId={
                   organizationId
                 }
-                onExecuted={
+                onUpdated={
                   loadActionCenter
                 }
               />
