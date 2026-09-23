@@ -4,6 +4,18 @@ import pandas as pd
 import shap
 
 
+FEATURE_LABELS = {
+    "tenure": "Tenure",
+    "monthly_charges": "Monthly Charges",
+    "total_charges": "Total Charges",
+    "contract": "Contract",
+    "payment_method": "Payment Method",
+    "internet_service": "Internet Service",
+    "online_security": "Online Security",
+    "tech_support": "Tech Support",
+}
+
+
 def prepare_explanation_features(
     customer_data: dict,
     feature_columns: list[str],
@@ -81,6 +93,9 @@ def explain_customer_prediction(
         explanations.append(
             {
                 "feature": feature,
+                "label": _feature_label(
+                    feature
+                ),
                 "impact": round(
                     float(value),
                     6,
@@ -101,3 +116,30 @@ def explain_customer_prediction(
     )
 
     return explanations
+
+
+def _feature_label(
+    feature: str,
+) -> str:
+    if feature in FEATURE_LABELS:
+        return FEATURE_LABELS[feature]
+
+    for base_feature, label in (
+        FEATURE_LABELS.items()
+    ):
+        prefix = f"{base_feature}_"
+
+        if feature.startswith(prefix):
+            value = feature[
+                len(prefix):
+            ]
+
+            return (
+                f"{label}: "
+                f"{value}"
+            )
+
+    return feature.replace(
+        "_",
+        " ",
+    ).title()
