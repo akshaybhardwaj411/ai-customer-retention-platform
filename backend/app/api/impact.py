@@ -19,22 +19,57 @@ def get_impact(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
-    total_actions = (
-        db.query(ActionOutcome)
-        .filter(
-            ActionOutcome.organization_id
-            == organization_id
-        )
-        .count()
+    base_query = db.query(
+        ActionOutcome
+    ).filter(
+        ActionOutcome.organization_id
+        == organization_id
     )
 
-    customers_saved = (
+    total_outcomes = (
+        base_query.count()
+    )
+
+    saved = (
         db.query(ActionOutcome)
         .filter(
             ActionOutcome.organization_id
             == organization_id,
             ActionOutcome.outcome
             == "saved",
+        )
+        .count()
+    )
+
+    not_saved = (
+        db.query(ActionOutcome)
+        .filter(
+            ActionOutcome.organization_id
+            == organization_id,
+            ActionOutcome.outcome
+            == "not_saved",
+        )
+        .count()
+    )
+
+    no_response = (
+        db.query(ActionOutcome)
+        .filter(
+            ActionOutcome.organization_id
+            == organization_id,
+            ActionOutcome.outcome
+            == "no_response",
+        )
+        .count()
+    )
+
+    unknown = (
+        db.query(ActionOutcome)
+        .filter(
+            ActionOutcome.organization_id
+            == organization_id,
+            ActionOutcome.outcome
+            == "unknown",
         )
         .count()
     )
@@ -55,10 +90,23 @@ def get_impact(
         .scalar()
     )
 
+    save_rate = (
+        saved / total_outcomes
+        if total_outcomes > 0
+        else 0
+    )
+
     return {
-        "total_actions": total_actions,
-        "customers_saved": customers_saved,
+        "total_actions": total_outcomes,
+        "customers_saved": saved,
+        "customers_not_saved": not_saved,
+        "no_response": no_response,
+        "unknown": unknown,
         "revenue_saved": float(
-            revenue_saved
+            revenue_saved or 0
+        ),
+        "save_rate": round(
+            save_rate,
+            4,
         ),
     }
