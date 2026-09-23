@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.action_outcome import ActionOutcome
 from app.models.customer import Customer
+from app.models.recommendation import Recommendation
 from app.models.retention_action import RetentionAction
 
 
@@ -63,7 +64,8 @@ def create_action(
         ),
         "action_type": action.action_type,
         "status": action.status,
-        "recommendation": action.recommendation,
+        "recommendation":
+            action.recommendation,
     }
 
 
@@ -95,13 +97,45 @@ def execute_action(
             "customer_id": str(
                 action.customer_id
             ),
-            "action_type": action.action_type,
+            "action_type":
+                action.action_type,
             "status": action.status,
-            "recommendation": action.recommendation,
-            "message": "Action was already executed.",
+            "recommendation":
+                action.recommendation,
+            "message":
+                "Action was already executed.",
         }
 
     action.status = "completed"
+
+    # --------------------------------------------------
+    # Mark matching pending recommendation as completed
+    # --------------------------------------------------
+
+    recommendation = (
+        db.query(Recommendation)
+        .filter(
+            Recommendation.organization_id
+            == organization_id,
+            Recommendation.customer_id
+            == action.customer_id,
+            Recommendation.action_type
+            == action.action_type,
+            Recommendation.status
+            == "pending",
+        )
+        .order_by(
+            Recommendation.created_at.desc()
+        )
+        .first()
+    )
+
+    if recommendation:
+        recommendation.status = "completed"
+
+    # --------------------------------------------------
+    # Record execution outcome
+    # --------------------------------------------------
 
     outcome = ActionOutcome(
         organization_id=action.organization_id,
@@ -112,6 +146,7 @@ def execute_action(
     )
 
     db.add(outcome)
+
     db.commit()
     db.refresh(action)
 
@@ -120,11 +155,11 @@ def execute_action(
         "customer_id": str(
             action.customer_id
         ),
-        "action_type": action.action_type,
+        "action_type":
+            action.action_type,
         "status": action.status,
-        "recommendation": action.recommendation,
-        "message": (
-            "Retention action executed "
-            "and outcome recorded."
-        ),
+        "recommendation":
+            action.recommendation,
+        "message":
+            "Retention action executed and recommendation updated.",
     }
