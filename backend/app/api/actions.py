@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.customer import Customer
+from app.models.campaign_customer import CampaignCustomer
 from app.models.recommendation import Recommendation
 from app.models.retention_action import RetentionAction
 
@@ -28,28 +28,20 @@ def create_action(
     data: ActionCreate,
     db: Session = Depends(get_db),
 ):
-    customer = (
-        db.query(Customer)
-        .filter(
-            Customer.id == data.customer_id,
-            Customer.organization_id
-            == data.organization_id,
-        )
-        .first()
-    )
+    action_type = data.action_type.strip()
 
-    if not customer:
+    if not action_type:
         raise HTTPException(
-            status_code=404,
-            detail="Customer not found.",
+            status_code=400,
+            detail="Action type is required.",
         )
 
     action = RetentionAction(
         organization_id=data.organization_id,
         customer_id=data.customer_id,
-        action_type=data.action_type,
-        recommendation=data.recommendation,
+        action_type=action_type,
         status="pending",
+        recommendation=data.recommendation,
     )
 
     db.add(action)
@@ -61,14 +53,17 @@ def create_action(
         "customer_id": str(
             action.customer_id
         ),
-        "action_type": action.action_type,
+        "action_type":
+            action.action_type,
         "status": action.status,
         "recommendation":
             action.recommendation,
     }
 
 
-@router.post("/{action_id}/execute")
+@router.post(
+    "/{action_id}/execute"
+)
 def execute_action(
     action_id: UUID,
     organization_id: UUID,
@@ -101,15 +96,13 @@ def execute_action(
             "status": action.status,
             "recommendation":
                 action.recommendation,
-            "message":
-                "Action was already executed.",
+            "message": (
+                "Action has already "
+                "been executed."
+            ),
         }
 
     action.status = "completed"
-
-    # --------------------------------------------------
-    # Mark matching recommendation as completed
-    # --------------------------------------------------
 
     recommendation = (
         db.query(Recommendation)
@@ -132,13 +125,21 @@ def execute_action(
     if recommendation:
         recommendation.status = "completed"
 
-    # --------------------------------------------------
-    # IMPORTANT:
-    # Do not create an ActionOutcome here.
-    #
-    # Execution and business outcome are different
-    # events.
-    # --------------------------------------------------
+    campaign_customer = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.retention_action_id
+            == action.id,
+        )
+        .first()
+    )
+
+    if campaign_customer:
+        campaign_customer.status = (
+            "executed"
+        )
 
     db.commit()
     db.refresh(action)
@@ -153,7 +154,10 @@ def execute_action(
         "status": action.status,
         "recommendation":
             action.recommendation,
-        "message":
-            "Retention action executed successfully. "
-            "Record the customer outcome separately.",
+        "message": (
+            "Retention action "
+            "executed successfully. "
+            "Record the customer outcome "
+            "separately."
+        ),
     }
