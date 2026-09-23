@@ -36,6 +36,14 @@ export type CampaignTargetResponse = {
 };
 
 
+export type CampaignExecutionResponse = {
+  campaign_id: string;
+  created_actions: number;
+  skipped_actions: number;
+  message: string;
+};
+
+
 export async function getCampaigns(
   organizationId: string,
 ): Promise<Campaign[]> {
@@ -97,6 +105,23 @@ export async function targetCampaignCustomers(
           organizationId,
         segment,
       }),
+    },
+  );
+}
+
+
+export async function executeCampaign(
+  campaignId: string,
+  organizationId: string,
+): Promise<CampaignExecutionResponse> {
+  return apiRequest<CampaignExecutionResponse>(
+    `/campaigns/${encodeURIComponent(
+      campaignId,
+    )}/execute?organization_id=${encodeURIComponent(
+      organizationId,
+    )}`,
+    {
+      method: "POST",
     },
   );
 }
