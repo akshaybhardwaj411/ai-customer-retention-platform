@@ -19,8 +19,8 @@ router = APIRouter(
 
 
 class PriorityRequest(BaseModel):
-    customer_value: float
-    intervention_opportunity: float
+    customer_value: float | None = None
+    intervention_opportunity: float | None = None
 
 
 @router.post("/customers/{customer_id}")
@@ -68,24 +68,39 @@ def calculate_customer_priority(
         else None
     )
 
+    customer_value = (
+        data.customer_value
+        if data.customer_value is not None
+        else 0.5
+    )
+
+    intervention_opportunity = (
+        data.intervention_opportunity
+        if data.intervention_opportunity
+        is not None
+        else 0.5
+    )
+
     result = calculate_priority(
         churn_probability=churn_probability,
-        customer_value=data.customer_value,
+        customer_value=customer_value,
         intervention_opportunity=(
-            data.intervention_opportunity
+            intervention_opportunity
         ),
     )
 
     return {
-        "customer_id": str(customer_id),
+        "customer_id": str(
+            customer_id
+        ),
         "churn_probability": (
             churn_probability
         ),
         "customer_value": (
-            data.customer_value
+            customer_value
         ),
         "intervention_opportunity": (
-            data.intervention_opportunity
+            intervention_opportunity
         ),
         "priority_score": (
             result.priority_score
