@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.action_outcome import ActionOutcome
+from app.models.campaign_customer import CampaignCustomer
 from app.models.retention_action import RetentionAction
 
 
@@ -36,7 +37,11 @@ def create_outcome(
     data: OutcomeCreate,
     db: Session = Depends(get_db),
 ):
-    if data.outcome not in ALLOWED_OUTCOMES:
+    outcome_value = (
+        data.outcome.strip().lower()
+    )
+
+    if outcome_value not in ALLOWED_OUTCOMES:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -98,7 +103,7 @@ def create_outcome(
         )
 
     if (
-        data.outcome != "saved"
+        outcome_value != "saved"
         and data.revenue_saved is not None
         and data.revenue_saved != 0
     ):
@@ -125,15 +130,38 @@ def create_outcome(
         organization_id=data.organization_id,
         action_id=data.action_id,
         customer_id=data.customer_id,
-        outcome=data.outcome,
+        outcome=outcome_value,
         revenue_saved=(
             data.revenue_saved
-            if data.outcome == "saved"
+            if outcome_value == "saved"
             else None
         ),
     )
 
     db.add(outcome)
+
+    campaign_customer = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.organization_id
+            == data.organization_id,
+            CampaignCustomer.retention_action_id
+            == data.action_id,
+            CampaignCustomer.customer_id
+            == data.customer_id,
+        )
+        .first()
+    )
+
+    if campaign_customer:
+        campaign_customer.outcome = (
+            outcome_value
+        )
+
+        campaign_customer.status = (
+            "outcome_recorded"
+        )
+
     db.commit()
     db.refresh(outcome)
 
