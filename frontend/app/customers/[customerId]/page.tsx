@@ -29,10 +29,17 @@ import {
   ChurnPrediction,
 } from "../../../lib/ml";
 
+import {
+  getCustomerRiskExplanation,
+  RiskFactor,
+} from "../../../lib/explanations";
+
 
 export default function Customer360Page() {
   const params = useParams();
-  const customerId = String(params.customerId);
+  const customerId = String(
+    params.customerId,
+  );
 
   const [data, setData] =
     useState<Customer360 | null>(null);
@@ -49,16 +56,25 @@ export default function Customer360Page() {
   const [prediction, setPrediction] =
     useState<ChurnPrediction | null>(null);
 
+  const [riskFactors, setRiskFactors] =
+    useState<RiskFactor[]>([]);
+
   const [loading, setLoading] =
     useState(true);
 
   const [predicting, setPredicting] =
     useState(false);
 
+  const [explaining, setExplaining] =
+    useState(false);
+
   const [error, setError] =
     useState("");
 
   const [predictionError, setPredictionError] =
+    useState("");
+
+  const [explanationError, setExplanationError] =
     useState("");
 
   const [tenure, setTenure] =
@@ -153,6 +169,40 @@ export default function Customer360Page() {
   }, [customerId]);
 
 
+  function getCustomerFeatures() {
+    return {
+      tenure: tenure
+        ? Number(tenure)
+        : undefined,
+
+      monthly_charges:
+        monthlyCharges
+          ? Number(monthlyCharges)
+          : undefined,
+
+      total_charges:
+        totalCharges
+          ? Number(totalCharges)
+          : undefined,
+
+      contract:
+        contract || undefined,
+
+      payment_method:
+        paymentMethod || undefined,
+
+      internet_service:
+        internetService || undefined,
+
+      online_security:
+        onlineSecurity || undefined,
+
+      tech_support:
+        techSupport || undefined,
+    };
+  }
+
+
   async function handlePrediction() {
     const organizationId =
       localStorage.getItem(
@@ -166,16 +216,19 @@ export default function Customer360Page() {
       return;
     }
 
-    if (
-      !tenure &&
-      !monthlyCharges &&
-      !totalCharges &&
-      !contract &&
-      !paymentMethod &&
-      !internetService &&
-      !onlineSecurity &&
-      !techSupport
-    ) {
+    const customerData =
+      getCustomerFeatures();
+
+    const hasFeature =
+      Object.values(
+        customerData,
+      ).some(
+        (value) =>
+          value !== undefined,
+        ),
+      );
+
+    if (!hasFeature) {
       setPredictionError(
         "Enter at least one customer feature before running the prediction.",
       );
@@ -190,36 +243,7 @@ export default function Customer360Page() {
         await predictCustomerChurn(
           customerId,
           organizationId,
-          {
-            tenure: tenure
-              ? Number(tenure)
-              : undefined,
-
-            monthly_charges:
-              monthlyCharges
-                ? Number(monthlyCharges)
-                : undefined,
-
-            total_charges:
-              totalCharges
-                ? Number(totalCharges)
-                : undefined,
-
-            contract:
-              contract || undefined,
-
-            payment_method:
-              paymentMethod || undefined,
-
-            internet_service:
-              internetService || undefined,
-
-            online_security:
-              onlineSecurity || undefined,
-
-            tech_support:
-              techSupport || undefined,
-          },
+          customerData,
         );
 
       setPrediction(result);
@@ -232,6 +256,64 @@ export default function Customer360Page() {
       );
     } finally {
       setPredicting(false);
+    }
+  }
+
+
+  async function handleExplanation() {
+    const organizationId =
+      localStorage.getItem(
+        "organization_id",
+      );
+
+    if (!organizationId || !data) {
+      setExplanationError(
+        "Customer or organization information is unavailable.",
+      );
+      return;
+    }
+
+    const customerData =
+      getCustomerFeatures();
+
+    const hasFeature =
+      Object.values(
+        customerData,
+      ).some(
+        (value) =>
+          value !== undefined,
+      );
+
+    if (!hasFeature) {
+      setExplanationError(
+        "Enter customer features before generating an explanation.",
+      );
+      return;
+    }
+
+    setExplaining(true);
+    setExplanationError("");
+
+    try {
+      const result =
+        await getCustomerRiskExplanation(
+          customerId,
+          organizationId,
+          customerData,
+        );
+
+      setRiskFactors(
+        result.risk_factors,
+      );
+
+    } catch (requestError) {
+      setExplanationError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to generate risk explanation.",
+      );
+    } finally {
+      setExplaining(false);
     }
   }
 
@@ -461,34 +543,77 @@ export default function Customer360Page() {
           </div>
 
 
-          <button
-            type="button"
-            onClick={handlePrediction}
-            disabled={predicting}
+          <div
             style={{
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
               marginTop: "20px",
-              padding:
-                "10px 16px",
-              border: "none",
-              borderRadius: "8px",
-              background:
-                "#0f172a",
-              color: "white",
-              fontWeight: 600,
-              cursor:
-                predicting
-                  ? "not-allowed"
-                  : "pointer",
-              opacity:
-                predicting
-                  ? 0.6
-                  : 1,
             }}
           >
-            {predicting
-              ? "Predicting..."
-              : "Run Churn Prediction"}
-          </button>
+            <button
+              type="button"
+              onClick={
+                handlePrediction
+              }
+              disabled={predicting}
+              style={{
+                padding:
+                  "10px 16px",
+                border: "none",
+                borderRadius: "8px",
+                background:
+                  "#0f172a",
+                color: "white",
+                fontWeight: 600,
+                cursor:
+                  predicting
+                    ? "not-allowed"
+                    : "pointer",
+                opacity:
+                  predicting
+                    ? 0.6
+                    : 1,
+              }}
+            >
+              {predicting
+                ? "Predicting..."
+                : "Run Churn Prediction"}
+            </button>
+
+
+            <button
+              type="button"
+              onClick={
+                handleExplanation
+              }
+              disabled={explaining}
+              style={{
+                padding:
+                  "10px 16px",
+                border:
+                  "1px solid #cbd5e1",
+                borderRadius: "8px",
+                background:
+                  "white",
+                color:
+                  "#0f172a",
+                fontWeight: 600,
+                cursor:
+                  explaining
+                    ? "not-allowed"
+                    : "pointer",
+                opacity:
+                  explaining
+                    ? 0.6
+                    : 1,
+              }}
+            >
+              {explaining
+                ? "Analyzing..."
+                : "Explain Risk"}
+            </button>
+          </div>
 
 
           {predictionError && (
@@ -499,6 +624,18 @@ export default function Customer360Page() {
               }}
             >
               {predictionError}
+            </p>
+          )}
+
+
+          {explanationError && (
+            <p
+              style={{
+                marginTop: "16px",
+                color: "#b91c1c",
+              }}
+            >
+              {explanationError}
             </p>
           )}
 
@@ -560,41 +697,86 @@ export default function Customer360Page() {
           }}
         >
           <h2>
-            AI Insight
+            AI Risk Explanation
           </h2>
 
-          <p>
-            {insight?.summary ||
-              "No insight available."}
-          </p>
-
-          {insight?.risk_factors
-            ?.length ? (
-            <>
-              <h3>
-                Risk Factors
-              </h3>
-
-              <ul>
-                {insight.risk_factors.map(
-                  (factor) => (
-                    <li key={factor}>
-                      {factor}
-                    </li>
-                  ),
-                )}
-              </ul>
-            </>
-          ) : (
+          {riskFactors.length ===
+          0 ? (
             <p
               style={{
                 color:
                   "#64748b",
               }}
             >
-              No specific risk factors
-              are available yet.
+              Run "Explain Risk" to
+              see the factors influencing
+              this customer's churn risk.
             </p>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gap: "12px",
+                marginTop: "16px",
+              }}
+            >
+              {riskFactors
+                .slice(0, 8)
+                .map(
+                  (factor) => (
+                    <div
+                      key={`${factor.feature}-${factor.impact}`}
+                      style={{
+                        display: "flex",
+                        justifyContent:
+                          "space-between",
+                        alignItems:
+                          "center",
+                        gap: "16px",
+                        padding:
+                          "14px 16px",
+                        background:
+                          "#f8fafc",
+                        border:
+                          "1px solid #e2e8f0",
+                        borderRadius:
+                          "8px",
+                      }}
+                    >
+                      <div>
+                        <strong>
+                          {
+                            factor.feature
+                          }
+                        </strong>
+
+                        <p
+                          style={{
+                            margin:
+                              "4px 0 0",
+                            color:
+                              "#64748b",
+                          }}
+                        >
+                          {factor.direction ===
+                          "increases_risk"
+                            ? "Increases churn risk"
+                            : "Decreases churn risk"}
+                        </p>
+                      </div>
+
+                      <strong>
+                        {factor.impact > 0
+                          ? "+"
+                          : ""}
+                        {factor.impact.toFixed(
+                          3,
+                        )}
+                      </strong>
+                    </div>
+                  ),
+                )}
+            </div>
           )}
         </section>
 
@@ -629,16 +811,6 @@ export default function Customer360Page() {
                   "No reason provided."
                 }
               </p>
-
-              {nextBestAction.expected_value !==
-                null && (
-                <p>
-                  Expected value:{" "}
-                  {
-                    nextBestAction.expected_value
-                  }
-                </p>
-              )}
             </>
           ) : (
             <p
@@ -807,7 +979,6 @@ function InputField({
           border:
             "1px solid #cbd5e1",
           borderRadius: "8px",
-          outline: "none",
         }}
       />
     </label>
