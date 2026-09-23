@@ -1,47 +1,143 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import {
   getCustomer360,
-  Customer360,
-} from "../../../lib/customer-360";
+  type Customer360,
+} from "@/lib/customer-360";
 
 import {
   getCustomerInsight,
-  CustomerInsight,
-} from "../../../lib/insights";
+  type CustomerInsight,
+} from "@/lib/insights";
 
 import {
   getNextBestAction,
-  NextBestAction,
-} from "../../../lib/next-best-action";
+  type NextBestAction,
+} from "@/lib/next-best-action";
 
 import {
   getCustomerPriority,
-  CustomerPriority,
-} from "../../../lib/priority";
+  type CustomerPriority,
+} from "@/lib/priority";
 
 import {
   predictCustomerChurn,
-  ChurnPrediction,
-} from "../../../lib/ml";
+  type ChurnPrediction,
+} from "@/lib/ml";
 
 import {
   getCustomerRiskExplanation,
-  RiskFactor,
-} from "../../../lib/explanations";
+  type RiskFactor,
+} from "@/lib/explanations";
+
+
+function InfoCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: "12px",
+        padding: "18px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "13px",
+          color: "#64748b",
+          marginBottom: "6px",
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          fontSize: "20px",
+          fontWeight: 700,
+          color: "#0f172a",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+
+function InputField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "13px",
+          fontWeight: 600,
+          color: "#475569",
+        }}
+      >
+        {label}
+      </span>
+
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          border: "1px solid #cbd5e1",
+          borderRadius: "8px",
+          background: "#ffffff",
+          color: "#0f172a",
+          outline: "none",
+        }}
+      />
+    </label>
+  );
+}
 
 
 export default function Customer360Page() {
   const params = useParams();
+
   const customerId = String(
-    params.customerId,
+    params.customerId || "",
   );
 
-  const [data, setData] =
+  const [organizationId, setOrganizationId] =
+    useState("");
+
+  const [customer360, setCustomer360] =
     useState<Customer360 | null>(null);
 
   const [insight, setInsight] =
@@ -62,20 +158,21 @@ export default function Customer360Page() {
   const [loading, setLoading] =
     useState(true);
 
-  const [predicting, setPredicting] =
+  const [predictionLoading, setPredictionLoading] =
     useState(false);
 
-  const [explaining, setExplaining] =
+  const [explanationLoading, setExplanationLoading] =
     useState(false);
 
   const [error, setError] =
-    useState("");
+    useState<string | null>(null);
 
   const [predictionError, setPredictionError] =
-    useState("");
+    useState<string | null>(null);
 
   const [explanationError, setExplanationError] =
-    useState("");
+    useState<string | null>(null);
+
 
   const [tenure, setTenure] =
     useState("");
@@ -103,25 +200,42 @@ export default function Customer360Page() {
 
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedOrganizationId =
+      window.localStorage.getItem(
+        "organization_id",
+      );
+
+    if (storedOrganizationId) {
+      setOrganizationId(
+        storedOrganizationId,
+      );
+    } else {
+      setLoading(false);
+      setError(
+        "Organization is not selected.",
+      );
+    }
+  }, []);
+
+
+  useEffect(() => {
+    if (!organizationId || !customerId) {
+      return;
+    }
+
     async function loadCustomer() {
-      const organizationId =
-        localStorage.getItem(
-          "organization_id",
-        );
-
-      if (!organizationId) {
-        setError(
-          "Organization not found.",
-        );
-        setLoading(false);
-        return;
-      }
-
       try {
+        setLoading(true);
+        setError(null);
+
         const [
-          customer360,
+          customerData,
           customerInsight,
-          customerNextBestAction,
+          customerAction,
           customerPriority,
         ] = await Promise.all([
           getCustomer360(
@@ -147,17 +261,14 @@ export default function Customer360Page() {
           ),
         ]);
 
-        setData(customer360);
+        setCustomer360(customerData);
         setInsight(customerInsight);
-        setNextBestAction(
-          customerNextBestAction,
-        );
+        setNextBestAction(customerAction);
         setPriority(customerPriority);
-
-      } catch (requestError) {
+      } catch (loadError) {
         setError(
-          requestError instanceof Error
-            ? requestError.message
+          loadError instanceof Error
+            ? loadError.message
             : "Unable to load customer.",
         );
       } finally {
@@ -166,7 +277,10 @@ export default function Customer360Page() {
     }
 
     loadCustomer();
-  }, [customerId]);
+  }, [
+    organizationId,
+    customerId,
+  ]);
 
 
   function getCustomerFeatures() {
@@ -175,15 +289,13 @@ export default function Customer360Page() {
         ? Number(tenure)
         : undefined,
 
-      monthly_charges:
-        monthlyCharges
-          ? Number(monthlyCharges)
-          : undefined,
+      monthly_charges: monthlyCharges
+        ? Number(monthlyCharges)
+        : undefined,
 
-      total_charges:
-        totalCharges
-          ? Number(totalCharges)
-          : undefined,
+      total_charges: totalCharges
+        ? Number(totalCharges)
+        : undefined,
 
       contract:
         contract || undefined,
@@ -204,116 +316,77 @@ export default function Customer360Page() {
 
 
   async function handlePrediction() {
-    const organizationId =
-      localStorage.getItem(
-        "organization_id",
-      );
-
-    if (!organizationId || !data) {
-      setPredictionError(
-        "Customer or organization information is unavailable.",
-      );
+    if (
+      !organizationId ||
+      !customerId
+    ) {
       return;
     }
-
-    const customerData =
-      getCustomerFeatures();
-
-    const hasFeature =
-      Object.values(
-        customerData,
-      ).some(
-        (value) =>
-          value !== undefined,
-        ),
-      );
-
-    if (!hasFeature) {
-      setPredictionError(
-        "Enter at least one customer feature before running the prediction.",
-      );
-      return;
-    }
-
-    setPredicting(true);
-    setPredictionError("");
 
     try {
+      setPredictionLoading(true);
+      setPredictionError(null);
+
       const result =
         await predictCustomerChurn(
           customerId,
           organizationId,
-          customerData,
+          getCustomerFeatures(),
         );
 
       setPrediction(result);
 
-    } catch (requestError) {
+      const updatedAction =
+        await getNextBestAction(
+          customerId,
+          organizationId,
+        );
+
+      setNextBestAction(
+        updatedAction,
+      );
+    } catch (predictionErrorValue) {
       setPredictionError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Unable to generate churn prediction.",
+        predictionErrorValue instanceof Error
+          ? predictionErrorValue.message
+          : "Unable to generate prediction.",
       );
     } finally {
-      setPredicting(false);
+      setPredictionLoading(false);
     }
   }
 
 
   async function handleExplanation() {
-    const organizationId =
-      localStorage.getItem(
-        "organization_id",
-      );
-
-    if (!organizationId || !data) {
-      setExplanationError(
-        "Customer or organization information is unavailable.",
-      );
+    if (
+      !organizationId ||
+      !customerId
+    ) {
       return;
     }
-
-    const customerData =
-      getCustomerFeatures();
-
-    const hasFeature =
-      Object.values(
-        customerData,
-      ).some(
-        (value) =>
-          value !== undefined,
-      );
-
-    if (!hasFeature) {
-      setExplanationError(
-        "Enter customer features before generating an explanation.",
-      );
-      return;
-    }
-
-    setExplaining(true);
-    setExplanationError("");
 
     try {
+      setExplanationLoading(true);
+      setExplanationError(null);
+
       const result =
         await getCustomerRiskExplanation(
           customerId,
           organizationId,
-          customerData,
+          getCustomerFeatures(),
         );
 
       setRiskFactors(
         result.risk_factors,
       );
-
-    } catch (requestError) {
+    } catch (explanationErrorValue) {
       setExplanationError(
-        requestError instanceof Error
-          ? requestError.message
+        explanationErrorValue instanceof Error
+          ? explanationErrorValue.message
           : "Unable to generate risk explanation.",
       );
     } finally {
-      setExplaining(false);
+      setExplanationLoading(false);
     }
   }
 
@@ -322,656 +395,802 @@ export default function Customer360Page() {
     return (
       <main
         style={{
-          padding: "32px 24px",
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "32px 20px",
         }}
       >
-        <p>
-          Loading Customer 360...
-        </p>
+        Loading customer...
       </main>
     );
   }
 
 
-  if (error || !data) {
+  if (error) {
     return (
       <main
         style={{
-          padding: "32px 24px",
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "32px 20px",
         }}
       >
-        <Link href="/customers">
-          ← Customers
-        </Link>
-
-        <h1>
-          Customer 360
-        </h1>
-
-        <p>
-          {error ||
-            "Customer information is unavailable."}
-        </p>
+        <div
+          style={{
+            padding: "16px",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "10px",
+            color: "#991b1b",
+          }}
+        >
+          {error}
+        </div>
       </main>
     );
   }
 
 
-  const probability =
-    data.risk.churn_probability;
+  if (!customer360) {
+    return (
+      <main
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "32px 20px",
+        }}
+      >
+        Customer not found.
+      </main>
+    );
+  }
+
+
+  const customer =
+    customer360.customer;
 
 
   return (
     <main
       style={{
-        minHeight: "100vh",
-        padding: "32px 24px",
+        maxWidth: "1200px",
+        margin: "0 auto",
+        padding: "32px 20px 60px",
       }}
     >
-      <section
+      {/* Header */}
+
+      <div
         style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
+          marginBottom: "28px",
         }}
       >
-        <Link href="/customers">
-          ← Customers
-        </Link>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "#64748b",
+            marginBottom: "6px",
+          }}
+        >
+          Customer 360
+        </div>
 
-        <h1>
-          {data.customer.name}
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "32px",
+            lineHeight: 1.2,
+            color: "#0f172a",
+          }}
+        >
+          {customer.name}
         </h1>
 
-        <p
+        <div
           style={{
+            marginTop: "6px",
             color: "#64748b",
           }}
         >
-          {data.customer.email ||
-            "No email available"}
-        </p>
+          {customer.email || "No email available"}
+        </div>
+      </div>
 
+
+      {/* Summary */}
+
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "14px",
+          marginBottom: "28px",
+        }}
+      >
+        <InfoCard
+          title="Risk Level"
+          value={
+            prediction?.risk_level ||
+            customer360.risk.risk_level
+          }
+        />
+
+        <InfoCard
+          title="Churn Probability"
+          value={
+            prediction
+              ? `${(
+                  prediction.churn_probability *
+                  100
+                ).toFixed(1)}%`
+              : customer360.risk
+                    .churn_probability !==
+                  null
+                ? `${(
+                    customer360.risk
+                      .churn_probability *
+                    100
+                  ).toFixed(1)}%`
+                : "—"
+          }
+        />
+
+        <InfoCard
+          title="Priority"
+          value={
+            priority
+              ? priority.priority_level
+              : "—"
+          }
+        />
+
+        <InfoCard
+          title="Priority Score"
+          value={
+            priority
+              ? priority.priority_score.toFixed(
+                  3,
+                )
+              : "—"
+          }
+        />
+      </section>
+
+
+      {/* ML Inputs */}
+
+      <section
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: "12px",
+          padding: "22px",
+          marginBottom: "24px",
+        }}
+      >
+        <h2
+          style={{
+            margin: "0 0 6px",
+            fontSize: "20px",
+          }}
+        >
+          Churn Prediction Inputs
+        </h2>
+
+        <p
+          style={{
+            margin: "0 0 18px",
+            color: "#64748b",
+            fontSize: "14px",
+          }}
+        >
+          Provide the customer attributes used
+          by the churn model.
+        </p>
 
         <div
           style={{
             display: "grid",
             gridTemplateColumns:
-              "repeat(auto-fit, minmax(220px, 1fr))",
+              "repeat(auto-fit, minmax(200px, 1fr))",
             gap: "16px",
-            marginTop: "24px",
           }}
         >
-          <InfoCard
-            title="Risk Level"
-            value={
-              data.risk.risk_level
-            }
+          <InputField
+            label="Tenure"
+            value={tenure}
+            onChange={setTenure}
+            type="number"
+            placeholder="e.g. 12"
           />
 
-          <InfoCard
-            title="Churn Probability"
-            value={
-              probability !== null
-                ? `${(
-                    probability * 100
-                  ).toFixed(1)}%`
-                : "Unavailable"
-            }
+          <InputField
+            label="Monthly Charges"
+            value={monthlyCharges}
+            onChange={setMonthlyCharges}
+            type="number"
+            placeholder="e.g. 79.99"
           />
 
-          <InfoCard
-            title="Priority"
-            value={
-              priority
-                ? priority.priority_level
-                : "Unavailable"
-            }
+          <InputField
+            label="Total Charges"
+            value={totalCharges}
+            onChange={setTotalCharges}
+            type="number"
+            placeholder="e.g. 950"
           />
 
-          <InfoCard
-            title="Priority Score"
-            value={
-              priority
-                ? priority.priority_score.toFixed(
-                    3,
-                  )
-                : "Unavailable"
-            }
+          <InputField
+            label="Contract"
+            value={contract}
+            onChange={setContract}
+            placeholder="e.g. Month-to-month"
           />
 
-          <InfoCard
-            title="Customer Health"
-            value={
-              data.health.status
-            }
+          <InputField
+            label="Payment Method"
+            value={paymentMethod}
+            onChange={setPaymentMethod}
+            placeholder="e.g. Electronic check"
+          />
+
+          <InputField
+            label="Internet Service"
+            value={internetService}
+            onChange={setInternetService}
+            placeholder="e.g. Fiber optic"
+          />
+
+          <InputField
+            label="Online Security"
+            value={onlineSecurity}
+            onChange={setOnlineSecurity}
+            placeholder="e.g. No"
+          />
+
+          <InputField
+            label="Tech Support"
+            value={techSupport}
+            onChange={setTechSupport}
+            placeholder="e.g. No"
           />
         </div>
 
-
-        <section
+        <div
           style={{
-            marginTop: "24px",
-            padding: "24px",
-            background: "white",
-            border:
-              "1px solid #e2e8f0",
-            borderRadius: "12px",
+            display: "flex",
+            gap: "10px",
+            marginTop: "20px",
+            flexWrap: "wrap",
           }}
         >
-          <h2>
-            ML Churn Prediction
-          </h2>
-
-          <p
+          <button
+            type="button"
+            onClick={handlePrediction}
+            disabled={predictionLoading}
             style={{
-              color: "#64748b",
+              padding: "11px 18px",
+              border: 0,
+              borderRadius: "8px",
+              background: "#0f172a",
+              color: "#ffffff",
+              cursor: predictionLoading
+                ? "not-allowed"
+                : "pointer",
+              opacity: predictionLoading
+                ? 0.7
+                : 1,
+              fontWeight: 600,
             }}
           >
-            Enter available customer
-            data and run the trained
-            churn model.
-          </p>
+            {predictionLoading
+              ? "Running Prediction..."
+              : "Run Churn Prediction"}
+          </button>
 
+          <button
+            type="button"
+            onClick={handleExplanation}
+            disabled={explanationLoading}
+            style={{
+              padding: "11px 18px",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              background: "#ffffff",
+              color: "#0f172a",
+              cursor: explanationLoading
+                ? "not-allowed"
+                : "pointer",
+              opacity: explanationLoading
+                ? 0.7
+                : 1,
+              fontWeight: 600,
+            }}
+          >
+            {explanationLoading
+              ? "Explaining Risk..."
+              : "Explain Risk"}
+          </button>
+        </div>
+
+        {predictionError && (
+          <div
+            style={{
+              marginTop: "14px",
+              color: "#b91c1c",
+              fontSize: "14px",
+            }}
+          >
+            {predictionError}
+          </div>
+        )}
+      </section>
+
+
+      {/* Prediction */}
+
+      {prediction && (
+        <section
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
+            padding: "22px",
+            marginBottom: "24px",
+          }}
+        >
+          <h2
+            style={{
+              margin: "0 0 16px",
+              fontSize: "20px",
+            }}
+          >
+            Latest Churn Prediction
+          </h2>
 
           <div
             style={{
               display: "grid",
               gridTemplateColumns:
-                "repeat(auto-fit, minmax(220px, 1fr))",
+                "repeat(auto-fit, minmax(180px, 1fr))",
               gap: "14px",
-              marginTop: "18px",
             }}
           >
-            <InputField
-              label="Tenure"
-              value={tenure}
-              onChange={setTenure}
-              type="number"
-              placeholder="e.g. 24"
+            <InfoCard
+              title="Risk"
+              value={prediction.risk_level}
             />
 
-            <InputField
-              label="Monthly Charges"
-              value={monthlyCharges}
-              onChange={setMonthlyCharges}
-              type="number"
-              placeholder="e.g. 79.50"
+            <InfoCard
+              title="Probability"
+              value={`${(
+                prediction.churn_probability *
+                100
+              ).toFixed(1)}%`}
             />
 
-            <InputField
-              label="Total Charges"
-              value={totalCharges}
-              onChange={setTotalCharges}
-              type="number"
-              placeholder="e.g. 1908"
-            />
-
-            <InputField
-              label="Contract"
-              value={contract}
-              onChange={setContract}
-              placeholder="e.g. Month-to-month"
-            />
-
-            <InputField
-              label="Payment Method"
-              value={paymentMethod}
-              onChange={setPaymentMethod}
-              placeholder="e.g. Electronic check"
-            />
-
-            <InputField
-              label="Internet Service"
-              value={internetService}
-              onChange={setInternetService}
-              placeholder="e.g. Fiber optic"
-            />
-
-            <InputField
-              label="Online Security"
-              value={onlineSecurity}
-              onChange={setOnlineSecurity}
-              placeholder="e.g. Yes / No"
-            />
-
-            <InputField
-              label="Tech Support"
-              value={techSupport}
-              onChange={setTechSupport}
-              placeholder="e.g. Yes / No"
+            <InfoCard
+              title="Source"
+              value={prediction.source}
             />
           </div>
+        </section>
+      )}
 
 
+      {/* AI Insight */}
+
+      <section
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: "12px",
+          padding: "22px",
+          marginBottom: "24px",
+        }}
+      >
+        <h2
+          style={{
+            margin: "0 0 12px",
+            fontSize: "20px",
+          }}
+        >
+          AI Insight
+        </h2>
+
+        <p
+          style={{
+            margin: 0,
+            color: "#475569",
+            lineHeight: 1.6,
+          }}
+        >
+          {insight?.summary ||
+            "No AI insight is available yet."}
+        </p>
+      </section>
+
+
+      {/* Risk Explanation */}
+
+      <section
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: "12px",
+          padding: "22px",
+          marginBottom: "24px",
+        }}
+      >
+        <h2
+          style={{
+            margin: "0 0 6px",
+            fontSize: "20px",
+          }}
+        >
+          AI Risk Explanation
+        </h2>
+
+        <p
+          style={{
+            margin: "0 0 18px",
+            color: "#64748b",
+            fontSize: "14px",
+          }}
+        >
+          The strongest factors influencing the
+          current churn prediction.
+        </p>
+
+        {explanationError && (
+          <div
+            style={{
+              marginBottom: "14px",
+              color: "#b91c1c",
+              fontSize: "14px",
+            }}
+          >
+            {explanationError}
+          </div>
+        )}
+
+        {riskFactors.length === 0 ? (
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: "14px",
+            }}
+          >
+            Run Explain Risk to view the
+            prediction drivers.
+          </div>
+        ) : (
           <div
             style={{
               display: "flex",
-              gap: "12px",
-              flexWrap: "wrap",
-              marginTop: "20px",
+              flexDirection: "column",
+              gap: "10px",
             }}
           >
-            <button
-              type="button"
-              onClick={
-                handlePrediction
-              }
-              disabled={predicting}
-              style={{
-                padding:
-                  "10px 16px",
-                border: "none",
-                borderRadius: "8px",
-                background:
-                  "#0f172a",
-                color: "white",
-                fontWeight: 600,
-                cursor:
-                  predicting
-                    ? "not-allowed"
-                    : "pointer",
-                opacity:
-                  predicting
-                    ? 0.6
-                    : 1,
-              }}
-            >
-              {predicting
-                ? "Predicting..."
-                : "Run Churn Prediction"}
-            </button>
-
-
-            <button
-              type="button"
-              onClick={
-                handleExplanation
-              }
-              disabled={explaining}
-              style={{
-                padding:
-                  "10px 16px",
-                border:
-                  "1px solid #cbd5e1",
-                borderRadius: "8px",
-                background:
-                  "white",
-                color:
-                  "#0f172a",
-                fontWeight: 600,
-                cursor:
-                  explaining
-                    ? "not-allowed"
-                    : "pointer",
-                opacity:
-                  explaining
-                    ? 0.6
-                    : 1,
-              }}
-            >
-              {explaining
-                ? "Analyzing..."
-                : "Explain Risk"}
-            </button>
-          </div>
-
-
-          {predictionError && (
-            <p
-              style={{
-                marginTop: "16px",
-                color: "#b91c1c",
-              }}
-            >
-              {predictionError}
-            </p>
-          )}
-
-
-          {explanationError && (
-            <p
-              style={{
-                marginTop: "16px",
-                color: "#b91c1c",
-              }}
-            >
-              {explanationError}
-            </p>
-          )}
-
-
-          {prediction && (
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "16px",
-                background:
-                  "#f8fafc",
-                border:
-                  "1px solid #e2e8f0",
-                borderRadius: "8px",
-              }}
-            >
-              <p>
-                <strong>
-                  Churn Probability:
-                </strong>{" "}
-                {(
-                  prediction.churn_probability *
-                  100
-                ).toFixed(1)}
-                %
-              </p>
-
-              <p>
-                <strong>
-                  Risk Level:
-                </strong>{" "}
-                {prediction.risk_level}
-              </p>
-
-              <small
-                style={{
-                  color:
-                    "#64748b",
-                }}
-              >
-                Prediction generated{" "}
-                {new Date(
-                  prediction.created_at,
-                ).toLocaleString()}
-              </small>
-            </div>
-          )}
-        </section>
-
-
-        <section
-          style={{
-            marginTop: "24px",
-            padding: "24px",
-            background: "white",
-            border:
-              "1px solid #e2e8f0",
-            borderRadius: "12px",
-          }}
-        >
-          <h2>
-            AI Risk Explanation
-          </h2>
-
-          {riskFactors.length ===
-          0 ? (
-            <p
-              style={{
-                color:
-                  "#64748b",
-              }}
-            >
-              Run "Explain Risk" to
-              see the factors influencing
-              this customer's churn risk.
-            </p>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gap: "12px",
-                marginTop: "16px",
-              }}
-            >
-              {riskFactors
-                .slice(0, 8)
-                .map(
-                  (factor) => (
-                    <div
-                      key={`${factor.feature}-${factor.impact}`}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "16px",
-                        padding: "14px 16px",
-                        background: "#f8fafc",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                      }}
-                    >
-                      <div>
-                        <strong>
-                          {factor.label}
-                        </strong>
-                        
-                        <p
-                          style={{
-                            margin: "4px 0 0",
-                            color: "#64748b",
-                            fontSize: "14px",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {factor.interpretation}
-                          {factor.direction ===
-                          "increases_risk"
-                            ? "Increases churn risk"
-                          : "Decreases churn risk"}
-                        </p>
-                      </div>
-                      
-                      <strong>
-                        {factor.impact > 0
-                          ? "+"
-                        : ""}
-                        {factor.impact.toFixed(3)}
-                      </strong>
-                    </div>
-                  ),
-                )}
-            </div>
-          )}
-        </section>
-
-
-        <section
-          style={{
-            marginTop: "24px",
-            padding: "24px",
-            background: "white",
-            border:
-              "1px solid #e2e8f0",
-            borderRadius: "12px",
-          }}
-        >
-          <h2>
-            Next Best Action
-          </h2>
-
-          {nextBestAction?.action ? (
-            <>
-              <p>
-                <strong>
-                  {
-                    nextBestAction.action
-                  }
-                </strong>
-              </p>
-
-              <p>
-                {
-                  nextBestAction.reason ||
-                  "No reason provided."
-                }
-              </p>
-            </>
-          ) : (
-            <p
-              style={{
-                color:
-                  "#64748b",
-              }}
-            >
-              No recommended action
-              is available yet.
-            </p>
-          )}
-        </section>
-
-
-        <section
-          style={{
-            marginTop: "24px",
-            padding: "24px",
-            background: "white",
-            border:
-              "1px solid #e2e8f0",
-            borderRadius: "12px",
-          }}
-        >
-          <h2>
-            Customer Timeline
-          </h2>
-
-          {data.timeline.length ===
-          0 ? (
-            <p
-              style={{
-                color:
-                  "#64748b",
-              }}
-            >
-              No customer events
-              recorded.
-            </p>
-          ) : (
-            <div>
-              {data.timeline.map(
-                (event) => (
+            {riskFactors
+              .slice(0, 8)
+              .map((factor) => (
+                <div
+                  key={`${factor.feature}-${factor.impact}`}
+                  style={{
+                    padding: "14px 16px",
+                    background: "#f8fafc",
+                    border:
+                      "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                  }}
+                >
                   <div
-                    key={event.id}
                     style={{
-                      padding:
-                        "14px 0",
-                      borderBottom:
-                        "1px solid #e2e8f0",
+                      display: "flex",
+                      justifyContent:
+                        "space-between",
+                      alignItems: "flex-start",
+                      gap: "16px",
                     }}
                   >
+                    <div>
+                      <strong>
+                        {factor.label}
+                      </strong>
+
+                      <p
+                        style={{
+                          margin:
+                            "4px 0 0",
+                          color:
+                            factor.direction ===
+                            "increases_risk"
+                              ? "#b91c1c"
+                              : "#15803d",
+                          fontSize:
+                            "13px",
+                        }}
+                      >
+                        {factor.direction ===
+                        "increases_risk"
+                          ? "Increases churn risk"
+                          : "Decreases churn risk"}
+                      </p>
+                    </div>
+
                     <strong>
-                      {
-                        event.event_type
-                      }
+                      {factor.impact > 0
+                        ? "+"
+                        : ""}
+                      {factor.impact.toFixed(
+                        3,
+                      )}
                     </strong>
-
-                    <p>
-                      {
-                        event.description ||
-                        "No description"
-                      }
-                    </p>
-
-                    <small
-                      style={{
-                        color:
-                          "#64748b",
-                      }}
-                    >
-                      {new Date(
-                        event.created_at,
-                      ).toLocaleString()}
-                    </small>
                   </div>
-                ),
+
+                  <p
+                    style={{
+                      margin:
+                        "8px 0 0",
+                      color: "#475569",
+                      fontSize: "14px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {factor.interpretation}
+                  </p>
+                </div>
+              ))}
+          </div>
+        )}
+      </section>
+
+
+      {/* Next Best Action */}
+
+      <section
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: "12px",
+          padding: "22px",
+          marginBottom: "24px",
+        }}
+      >
+        <h2
+          style={{
+            margin: "0 0 6px",
+            fontSize: "20px",
+          }}
+        >
+          Next Best Action
+        </h2>
+
+        <p
+          style={{
+            margin: "0 0 18px",
+            color: "#64748b",
+            fontSize: "14px",
+          }}
+        >
+          The recommended retention action for
+          this customer.
+        </p>
+
+        {!nextBestAction?.action ? (
+          <div
+            style={{
+              color: "#64748b",
+            }}
+          >
+            No retention action is available yet.
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                padding: "18px",
+                background: "#f8fafc",
+                border:
+                  "1px solid #e2e8f0",
+                borderRadius: "10px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#64748b",
+                  marginBottom: "6px",
+                }}
+              >
+                RECOMMENDED ACTION
+              </div>
+
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "#0f172a",
+                  textTransform:
+                    "capitalize",
+                }}
+              >
+                {nextBestAction.action.replace(
+                  /_/g,
+                  " ",
+                )}
+              </div>
+
+              {nextBestAction.reason && (
+                <p
+                  style={{
+                    margin:
+                      "8px 0 0",
+                    color: "#475569",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {nextBestAction.reason}
+                </p>
               )}
             </div>
-          )}
-        </section>
+
+            {nextBestAction.risk_factors
+              ?.length > 0 && (
+              <div
+                style={{
+                  marginTop: "16px",
+                  padding:
+                    "14px 16px",
+                  background:
+                    "#f8fafc",
+                  border:
+                    "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#64748b",
+                    marginBottom:
+                      "6px",
+                  }}
+                >
+                  PRIMARY RISK DRIVER
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#0f172a",
+                  }}
+                >
+                  {
+                    nextBestAction
+                      .risk_factors[0]
+                      .label
+                  }
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "4px",
+                    fontSize: "14px",
+                    color: "#475569",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {
+                    nextBestAction
+                      .risk_factors[0]
+                      .interpretation
+                  }
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+
+      {/* Timeline */}
+
+      <section
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: "12px",
+          padding: "22px",
+        }}
+      >
+        <h2
+          style={{
+            margin: "0 0 18px",
+            fontSize: "20px",
+          }}
+        >
+          Customer Timeline
+        </h2>
+
+        {customer360.timeline.length === 0 ? (
+          <div
+            style={{
+              color: "#64748b",
+            }}
+          >
+            No customer events available.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            {customer360.timeline.map(
+              (event) => (
+                <div
+                  key={event.id}
+                  style={{
+                    padding:
+                      "14px 16px",
+                    background:
+                      "#f8fafc",
+                    border:
+                      "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: "#0f172a",
+                    }}
+                  >
+                    {event.event_type}
+                  </div>
+
+                  {event.description && (
+                    <div
+                      style={{
+                        marginTop:
+                          "4px",
+                        color:
+                          "#475569",
+                      }}
+                    >
+                      {
+                        event.description
+                      }
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      marginTop:
+                        "6px",
+                      fontSize:
+                        "12px",
+                      color:
+                        "#94a3b8",
+                    }}
+                  >
+                    {new Date(
+                      event.created_at,
+                    ).toLocaleString()}
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        )}
       </section>
     </main>
-  );
-}
-
-
-function InfoCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: string;
-}) {
-  return (
-    <div
-      style={{
-        padding: "20px",
-        background: "white",
-        border:
-          "1px solid #e2e8f0",
-        borderRadius: "12px",
-      }}
-    >
-      <p
-        style={{
-          marginTop: 0,
-          color: "#64748b",
-        }}
-      >
-        {title}
-      </p>
-
-      <strong
-        style={{
-          fontSize: "24px",
-        }}
-      >
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-
-function InputField({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  placeholder?: string;
-}) {
-  return (
-    <label
-      style={{
-        display: "grid",
-        gap: "6px",
-      }}
-    >
-      <span
-        style={{
-          fontSize: "14px",
-          fontWeight: 600,
-        }}
-      >
-        {label}
-      </span>
-
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        style={{
-          width: "100%",
-          padding: "10px 12px",
-          border:
-            "1px solid #cbd5e1",
-          borderRadius: "8px",
-        }}
-      />
-    </label>
   );
 }
