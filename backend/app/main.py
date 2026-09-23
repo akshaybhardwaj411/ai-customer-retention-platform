@@ -2,26 +2,69 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.action_center import router as action_center_router
-from app.api.actions import router as actions_router
-from app.api.customer_360 import router as customer_360_router
-from app.api.customer_events import router as customer_events_router
-from app.api.customers import router as customers_router
-from app.api.explanations import router as explanations_router
-from app.api.impact import router as impact_router
-from app.api.import_preview import router as import_preview_router
-from app.api.import_validation import router as import_validation_router
-from app.api.imports import router as imports_router
-from app.api.insights import router as insights_router
-from app.api.ml_predictions import router as ml_predictions_router
-from app.api.ml_status import router as ml_status_router
-from app.api.next_best_action import router as next_best_action_router
-from app.api.organizations import router as organizations_router
-from app.api.outcomes import router as outcomes_router
-from app.api.priority import router as priority_router
-from app.api.recommendations import router as recommendations_router
-from app.api.risk import router as risk_router
-from app.api.risk_summary import router as risk_summary_router
+from app.api.action_center import (
+    router as action_center_router,
+)
+from app.api.actions import (
+    router as actions_router,
+)
+from app.api.campaigns import (
+    router as campaigns_router,
+)
+from app.api.customer_360 import (
+    router as customer_360_router,
+)
+from app.api.customer_events import (
+    router as customer_events_router,
+)
+from app.api.customers import (
+    router as customers_router,
+)
+from app.api.explanations import (
+    router as explanations_router,
+)
+from app.api.impact import (
+    router as impact_router,
+)
+from app.api.import_preview import (
+    router as import_preview_router,
+)
+from app.api.import_validation import (
+    router as import_validation_router,
+)
+from app.api.imports import (
+    router as imports_router,
+)
+from app.api.insights import (
+    router as insights_router,
+)
+from app.api.ml_predictions import (
+    router as ml_predictions_router,
+)
+from app.api.ml_status import (
+    router as ml_status_router,
+)
+from app.api.next_best_action import (
+    router as next_best_action_router,
+)
+from app.api.organizations import (
+    router as organizations_router,
+)
+from app.api.outcomes import (
+    router as outcomes_router,
+)
+from app.api.priority import (
+    router as priority_router,
+)
+from app.api.recommendations import (
+    router as recommendations_router,
+)
+from app.api.risk import (
+    router as risk_router,
+)
+from app.api.risk_summary import (
+    router as risk_summary_router,
+)
 from app.db.session import get_db
 
 
@@ -102,6 +145,10 @@ app.include_router(
 )
 
 app.include_router(
+    campaigns_router
+)
+
+app.include_router(
     imports_router
 )
 
@@ -129,9 +176,8 @@ app.include_router(
 @app.get("/")
 def root():
     return {
-        "message": (
-            "AI Customer Retention Platform API"
-        ),
+        "message":
+            "AI Customer Retention Platform API",
         "status": "running",
         "version": API_VERSION,
     }
