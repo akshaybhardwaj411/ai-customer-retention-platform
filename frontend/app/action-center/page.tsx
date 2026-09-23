@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
@@ -64,8 +65,7 @@ function RiskBadge({
         background:
           style.background,
         color: style.color,
-        textTransform:
-          "capitalize",
+        textTransform: "capitalize",
       }}
     >
       {normalized}
@@ -169,16 +169,22 @@ function ActionCard({
             )}
           </div>
 
-          <div
+          <Link
+            href={`/customers/${encodeURIComponent(
+              item.customer_id,
+            )}`}
             style={{
-              marginTop: "6px",
+              display: "inline-block",
+              marginTop: "7px",
               fontSize: "13px",
-              color: "#64748b",
+              color: "#2563eb",
+              textDecoration:
+                "none",
+              fontWeight: 600,
             }}
           >
-            Customer:{" "}
-            {item.customer_id}
-          </div>
+            View Customer →
+          </Link>
         </div>
 
         <button
