@@ -61,6 +61,30 @@ export default function Customer360Page() {
   const [predictionError, setPredictionError] =
     useState("");
 
+  const [tenure, setTenure] =
+    useState("");
+
+  const [monthlyCharges, setMonthlyCharges] =
+    useState("");
+
+  const [totalCharges, setTotalCharges] =
+    useState("");
+
+  const [contract, setContract] =
+    useState("");
+
+  const [paymentMethod, setPaymentMethod] =
+    useState("");
+
+  const [internetService, setInternetService] =
+    useState("");
+
+  const [onlineSecurity, setOnlineSecurity] =
+    useState("");
+
+  const [techSupport, setTechSupport] =
+    useState("");
+
 
   useEffect(() => {
     async function loadCustomer() {
@@ -142,6 +166,22 @@ export default function Customer360Page() {
       return;
     }
 
+    if (
+      !tenure &&
+      !monthlyCharges &&
+      !totalCharges &&
+      !contract &&
+      !paymentMethod &&
+      !internetService &&
+      !onlineSecurity &&
+      !techSupport
+    ) {
+      setPredictionError(
+        "Enter at least one customer feature before running the prediction.",
+      );
+      return;
+    }
+
     setPredicting(true);
     setPredictionError("");
 
@@ -151,7 +191,34 @@ export default function Customer360Page() {
           customerId,
           organizationId,
           {
-            customer_id: customerId,
+            tenure: tenure
+              ? Number(tenure)
+              : undefined,
+
+            monthly_charges:
+              monthlyCharges
+                ? Number(monthlyCharges)
+                : undefined,
+
+            total_charges:
+              totalCharges
+                ? Number(totalCharges)
+                : undefined,
+
+            contract:
+              contract || undefined,
+
+            payment_method:
+              paymentMethod || undefined,
+
+            internet_service:
+              internetService || undefined,
+
+            online_security:
+              onlineSecurity || undefined,
+
+            tech_support:
+              techSupport || undefined,
           },
         );
 
@@ -318,15 +385,88 @@ export default function Customer360Page() {
               color: "#64748b",
             }}
           >
-            Run the trained churn model
-            for this customer.
+            Enter available customer
+            data and run the trained
+            churn model.
           </p>
+
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "14px",
+              marginTop: "18px",
+            }}
+          >
+            <InputField
+              label="Tenure"
+              value={tenure}
+              onChange={setTenure}
+              type="number"
+              placeholder="e.g. 24"
+            />
+
+            <InputField
+              label="Monthly Charges"
+              value={monthlyCharges}
+              onChange={setMonthlyCharges}
+              type="number"
+              placeholder="e.g. 79.50"
+            />
+
+            <InputField
+              label="Total Charges"
+              value={totalCharges}
+              onChange={setTotalCharges}
+              type="number"
+              placeholder="e.g. 1908"
+            />
+
+            <InputField
+              label="Contract"
+              value={contract}
+              onChange={setContract}
+              placeholder="e.g. Month-to-month"
+            />
+
+            <InputField
+              label="Payment Method"
+              value={paymentMethod}
+              onChange={setPaymentMethod}
+              placeholder="e.g. Electronic check"
+            />
+
+            <InputField
+              label="Internet Service"
+              value={internetService}
+              onChange={setInternetService}
+              placeholder="e.g. Fiber optic"
+            />
+
+            <InputField
+              label="Online Security"
+              value={onlineSecurity}
+              onChange={setOnlineSecurity}
+              placeholder="e.g. Yes / No"
+            />
+
+            <InputField
+              label="Tech Support"
+              value={techSupport}
+              onChange={setTechSupport}
+              placeholder="e.g. Yes / No"
+            />
+          </div>
+
 
           <button
             type="button"
             onClick={handlePrediction}
             disabled={predicting}
             style={{
+              marginTop: "20px",
               padding:
                 "10px 16px",
               border: "none",
@@ -350,6 +490,7 @@ export default function Customer360Page() {
               : "Run Churn Prediction"}
           </button>
 
+
           {predictionError && (
             <p
               style={{
@@ -360,6 +501,7 @@ export default function Customer360Page() {
               {predictionError}
             </p>
           )}
+
 
           {prediction && (
             <div
@@ -619,5 +761,55 @@ function InfoCard({
         {value}
       </strong>
     </div>
+  );
+}
+
+
+function InputField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label
+      style={{
+        display: "grid",
+        gap: "6px",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "14px",
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </span>
+
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          border:
+            "1px solid #cbd5e1",
+          borderRadius: "8px",
+          outline: "none",
+        }}
+      />
+    </label>
   );
 }
