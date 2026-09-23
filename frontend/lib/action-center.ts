@@ -1,32 +1,34 @@
 import { apiRequest } from "./api";
 
 
-export type RetentionAction = {
+export type ActionCenterItem = {
   id: string;
   customer_id: string;
   action_type: string;
   status: string;
   recommendation: string | null;
+  risk_level: string;
+  priority: number;
+  source: string;
 };
 
 
-export async function createRetentionAction(
+export type ActionCenterResponse = {
+  total_actions: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  actions: ActionCenterItem[];
+};
+
+
+export async function getActionCenter(
   organizationId: string,
-  customerId: string,
-  actionType: string,
-  recommendation?: string,
-): Promise<RetentionAction> {
-  return apiRequest<RetentionAction>(
-    "/actions/",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        organization_id: organizationId,
-        customer_id: customerId,
-        action_type: actionType,
-        recommendation:
-          recommendation || null,
-      }),
-    },
+): Promise<ActionCenterResponse> {
+  return apiRequest<ActionCenterResponse>(
+    `/action-center/?organization_id=${encodeURIComponent(
+      organizationId,
+    )}`,
   );
 }
