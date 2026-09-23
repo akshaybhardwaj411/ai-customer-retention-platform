@@ -460,6 +460,7 @@ def target_campaign_customers(
                 data.organization_id,
             campaign_id=campaign_id,
             customer_id=customer.id,
+            retention_action_id=None,
             status="pending",
             outcome=None,
         )
@@ -510,9 +511,7 @@ def list_campaign_customers(
         )
 
     campaign_customers = (
-        db.query(
-            CampaignCustomer
-        )
+        db.query(CampaignCustomer)
         .filter(
             CampaignCustomer.campaign_id
             == campaign_id,
@@ -554,6 +553,13 @@ def list_campaign_customers(
             ),
             "customer_id": str(
                 item.customer_id
+            ),
+            "retention_action_id": (
+                str(
+                    item.retention_action_id
+                )
+                if item.retention_action_id
+                else None
             ),
             "customer_name": (
                 customer_map[
@@ -655,6 +661,12 @@ def execute_campaign(
         )
 
         if existing_action:
+            campaign_customer.retention_action_id = (
+                existing_action.id
+            )
+            campaign_customer.status = (
+                "action_created"
+            )
             skipped_actions += 1
             continue
 
@@ -672,6 +684,11 @@ def execute_campaign(
         )
 
         db.add(action)
+        db.flush()
+
+        campaign_customer.retention_action_id = (
+            action.id
+        )
 
         campaign_customer.status = (
             "action_created"
