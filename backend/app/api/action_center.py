@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.customer import Customer
 from app.models.prediction import Prediction
 from app.models.recommendation import Recommendation
 from app.models.retention_action import RetentionAction
@@ -36,10 +37,6 @@ def get_action_center(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
-    # --------------------------------------------------
-    # Pending retention actions
-    # --------------------------------------------------
-
     actions = (
         db.query(RetentionAction)
         .filter(
@@ -50,10 +47,6 @@ def get_action_center(
         )
         .all()
     )
-
-    # --------------------------------------------------
-    # Pending AI recommendations
-    # --------------------------------------------------
 
     recommendations = (
         db.query(Recommendation)
@@ -66,10 +59,6 @@ def get_action_center(
         .all()
     )
 
-    # --------------------------------------------------
-    # Latest prediction per customer
-    # --------------------------------------------------
-
     predictions = (
         db.query(Prediction)
         .filter(
@@ -78,6 +67,20 @@ def get_action_center(
         )
         .all()
     )
+
+    customers = (
+        db.query(Customer)
+        .filter(
+            Customer.organization_id
+            == organization_id
+        )
+        .all()
+    )
+
+    customer_map = {
+        str(customer.id): customer
+        for customer in customers
+    }
 
     prediction_map = {}
 
@@ -99,15 +102,19 @@ def get_action_center(
                 customer_id
             ] = prediction
 
-    # --------------------------------------------------
-    # Retention action items
-    # --------------------------------------------------
-
     action_items = []
 
     for action in actions:
+        customer_id = str(
+            action.customer_id
+        )
+
+        customer = customer_map.get(
+            customer_id
+        )
+
         prediction = prediction_map.get(
-            str(action.customer_id)
+            customer_id
         )
 
         risk_level = (
@@ -119,14 +126,26 @@ def get_action_center(
         action_items.append(
             {
                 "id": str(action.id),
-                "customer_id": str(
-                    action.customer_id
+                "customer_id":
+                    customer_id,
+                "customer_name": (
+                    customer.name
+                    if customer
+                    else "Unknown customer"
                 ),
-                "action_type": action.action_type,
-                "status": action.status,
+                "customer_email": (
+                    customer.email
+                    if customer
+                    else None
+                ),
+                "action_type":
+                    action.action_type,
+                "status":
+                    action.status,
                 "recommendation":
                     action.recommendation,
-                "risk_level": risk_level,
+                "risk_level":
+                    risk_level,
                 "priority":
                     _priority_value(
                         risk_level
@@ -136,17 +155,19 @@ def get_action_center(
             }
         )
 
-    # --------------------------------------------------
-    # AI recommendation items
-    # --------------------------------------------------
-
     recommendation_items = []
 
     for recommendation in recommendations:
+        customer_id = str(
+            recommendation.customer_id
+        )
+
+        customer = customer_map.get(
+            customer_id
+        )
+
         prediction = prediction_map.get(
-            str(
-                recommendation.customer_id
-            )
+            customer_id
         )
 
         risk_level = (
@@ -160,8 +181,17 @@ def get_action_center(
                 "id": str(
                     recommendation.id
                 ),
-                "customer_id": str(
-                    recommendation.customer_id
+                "customer_id":
+                    customer_id,
+                "customer_name": (
+                    customer.name
+                    if customer
+                    else "Unknown customer"
+                ),
+                "customer_email": (
+                    customer.email
+                    if customer
+                    else None
                 ),
                 "action_type":
                     recommendation.action_type,
@@ -180,10 +210,6 @@ def get_action_center(
             }
         )
 
-    # --------------------------------------------------
-    # Combine and prioritize
-    # --------------------------------------------------
-
     combined = (
         action_items
         + recommendation_items
@@ -196,10 +222,6 @@ def get_action_center(
         ),
         reverse=True,
     )
-
-    # --------------------------------------------------
-    # Summary
-    # --------------------------------------------------
 
     critical = sum(
         1
