@@ -12,6 +12,10 @@ FEATURES_PATH = Path(
     "ml/models/churn_features.joblib"
 )
 
+METADATA_PATH = Path(
+    "ml/models/churn_metadata.joblib"
+)
+
 
 def load_model():
     if not MODEL_PATH.exists():
@@ -28,6 +32,15 @@ def load_feature_columns():
 
     return joblib.load(
         FEATURES_PATH
+    )
+
+
+def load_model_metadata():
+    if not METADATA_PATH.exists():
+        return None
+
+    return joblib.load(
+        METADATA_PATH
     )
 
 
