@@ -33,6 +33,11 @@ import {
   type RiskFactor,
 } from "@/lib/explanations";
 
+import {
+  createRetentionAction,
+  executeRetentionAction,
+} from "@/lib/actions";
+
 
 function InfoCard({
   title,
@@ -164,6 +169,9 @@ export default function Customer360Page() {
   const [explanationLoading, setExplanationLoading] =
     useState(false);
 
+  const [executeLoading, setExecuteLoading] =
+    useState(false);
+
   const [error, setError] =
     useState<string | null>(null);
 
@@ -171,6 +179,12 @@ export default function Customer360Page() {
     useState<string | null>(null);
 
   const [explanationError, setExplanationError] =
+    useState<string | null>(null);
+
+  const [actionError, setActionError] =
+    useState<string | null>(null);
+
+  const [actionSuccess, setActionSuccess] =
     useState<string | null>(null);
 
 
@@ -391,6 +405,61 @@ export default function Customer360Page() {
   }
 
 
+  async function handleExecuteAction() {
+    if (
+      !organizationId ||
+      !customerId ||
+      !nextBestAction?.action
+    ) {
+      return;
+    }
+
+    try {
+      setExecuteLoading(true);
+      setActionError(null);
+      setActionSuccess(null);
+
+      const action =
+        await createRetentionAction(
+          organizationId,
+          customerId,
+          nextBestAction.action,
+          nextBestAction.reason ||
+            undefined,
+        );
+
+      const result =
+        await executeRetentionAction(
+          action.id,
+          organizationId,
+        );
+
+      setActionSuccess(
+        result.message ||
+          "Retention action executed successfully.",
+      );
+
+      const updatedAction =
+        await getNextBestAction(
+          customerId,
+          organizationId,
+        );
+
+      setNextBestAction(
+        updatedAction,
+      );
+    } catch (executeError) {
+      setActionError(
+        executeError instanceof Error
+          ? executeError.message
+          : "Unable to execute retention action.",
+      );
+    } finally {
+      setExecuteLoading(false);
+    }
+  }
+
+
   if (loading) {
     return (
       <main
@@ -458,8 +527,6 @@ export default function Customer360Page() {
         padding: "32px 20px 60px",
       }}
     >
-      {/* Header */}
-
       <div
         style={{
           marginBottom: "28px",
@@ -492,12 +559,11 @@ export default function Customer360Page() {
             color: "#64748b",
           }}
         >
-          {customer.email || "No email available"}
+          {customer.email ||
+            "No email available"}
         </div>
       </div>
 
-
-      {/* Summary */}
 
       <section
         style={{
@@ -557,8 +623,6 @@ export default function Customer360Page() {
         />
       </section>
 
-
-      {/* ML Inputs */}
 
       <section
         style={{
@@ -728,8 +792,6 @@ export default function Customer360Page() {
       </section>
 
 
-      {/* Prediction */}
-
       {prediction && (
         <section
           style={{
@@ -779,8 +841,6 @@ export default function Customer360Page() {
       )}
 
 
-      {/* AI Insight */}
-
       <section
         style={{
           background: "#ffffff",
@@ -811,8 +871,6 @@ export default function Customer360Page() {
         </p>
       </section>
 
-
-      {/* Risk Explanation */}
 
       <section
         style={{
@@ -891,7 +949,8 @@ export default function Customer360Page() {
                       display: "flex",
                       justifyContent:
                         "space-between",
-                      alignItems: "flex-start",
+                      alignItems:
+                        "flex-start",
                       gap: "16px",
                     }}
                   >
@@ -1037,6 +1096,7 @@ export default function Customer360Page() {
               )}
             </div>
 
+
             {nextBestAction.risk_factors
               ?.length > 0 && (
               <div
@@ -1093,6 +1153,94 @@ export default function Customer360Page() {
                 </div>
               </div>
             )}
+
+
+            {/* Execute */}
+
+            <div
+              style={{
+                marginTop: "18px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={
+                  handleExecuteAction
+                }
+                disabled={executeLoading}
+                style={{
+                  alignSelf: "flex-start",
+                  padding:
+                    "11px 20px",
+                  border: 0,
+                  borderRadius:
+                    "8px",
+                  background:
+                    "#0f172a",
+                  color:
+                    "#ffffff",
+                  cursor:
+                    executeLoading
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity:
+                    executeLoading
+                      ? 0.7
+                      : 1,
+                  fontWeight:
+                    600,
+                }}
+              >
+                {executeLoading
+                  ? "Executing..."
+                  : "Execute Action"}
+              </button>
+
+              {actionSuccess && (
+                <div
+                  style={{
+                    padding:
+                      "10px 12px",
+                    background:
+                      "#f0fdf4",
+                    border:
+                      "1px solid #bbf7d0",
+                    borderRadius:
+                      "8px",
+                    color:
+                      "#166534",
+                    fontSize:
+                      "14px",
+                  }}
+                >
+                  {actionSuccess}
+                </div>
+              )}
+
+              {actionError && (
+                <div
+                  style={{
+                    padding:
+                      "10px 12px",
+                    background:
+                      "#fef2f2",
+                    border:
+                      "1px solid #fecaca",
+                    borderRadius:
+                      "8px",
+                    color:
+                      "#991b1b",
+                    fontSize:
+                      "14px",
+                  }}
+                >
+                  {actionError}
+                </div>
+              )}
+            </div>
           </>
         )}
       </section>
@@ -1144,13 +1292,15 @@ export default function Customer360Page() {
                       "#f8fafc",
                     border:
                       "1px solid #e2e8f0",
-                    borderRadius: "8px",
+                    borderRadius:
+                      "8px",
                   }}
                 >
                   <div
                     style={{
                       fontWeight: 600,
-                      color: "#0f172a",
+                      color:
+                        "#0f172a",
                     }}
                   >
                     {event.event_type}
