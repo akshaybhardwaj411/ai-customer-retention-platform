@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.customer import Customer
+from app.models.prediction import Prediction
 from app.services.ml_service import (
     load_model,
     predict_customer_churn,
@@ -49,7 +50,10 @@ def predict_customer(
     if model is None:
         raise HTTPException(
             status_code=503,
-            detail="Churn model is not available. Train the model first.",
+            detail=(
+                "Churn model is not available. "
+                "Train the model first."
+            ),
         )
 
     try:
@@ -59,23 +63,40 @@ def predict_customer(
                 customer_data=data.customer_data,
             )
         )
+
     except FileNotFoundError as error:
         raise HTTPException(
             status_code=503,
             detail=str(error),
         ) from error
+
     except Exception as error:
         raise HTTPException(
             status_code=400,
-            detail=f"Unable to generate prediction: {error}",
+            detail=(
+                f"Unable to generate prediction: {error}"
+            ),
         ) from error
 
+    prediction = Prediction(
+        organization_id=organization_id,
+        customer_id=customer_id,
+        churn_probability=probability,
+        risk_level=risk_level,
+    )
+
+    db.add(prediction)
+    db.commit()
+    db.refresh(prediction)
+
     return {
-        "customer_id": str(customer.id),
+        "id": str(prediction.id),
+        "customer_id": str(customer_id),
         "organization_id": str(
             organization_id
         ),
         "churn_probability": probability,
         "risk_level": risk_level,
         "source": "ml_model",
+        "created_at": prediction.created_at,
     }
