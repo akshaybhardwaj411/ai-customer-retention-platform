@@ -12,6 +12,7 @@ from app.api.import_preview import router as import_preview_router
 from app.api.import_validation import router as import_validation_router
 from app.api.imports import router as imports_router
 from app.api.insights import router as insights_router
+from app.api.ml_predictions import router as ml_predictions_router
 from app.api.next_best_action import router as next_best_action_router
 from app.api.organizations import router as organizations_router
 from app.api.outcomes import router as outcomes_router
@@ -42,29 +43,85 @@ app.add_middleware(
 )
 
 
-app.include_router(organizations_router)
-app.include_router(customers_router)
-app.include_router(customer_360_router)
-app.include_router(customer_events_router)
-app.include_router(risk_router)
-app.include_router(risk_summary_router)
-app.include_router(insights_router)
-app.include_router(next_best_action_router)
-app.include_router(recommendations_router)
-app.include_router(actions_router)
-app.include_router(action_center_router)
-app.include_router(outcomes_router)
-app.include_router(priority_router)
-app.include_router(impact_router)
-app.include_router(imports_router)
-app.include_router(import_preview_router)
-app.include_router(import_validation_router)
+app.include_router(
+    organizations_router
+)
+
+app.include_router(
+    customers_router
+)
+
+app.include_router(
+    customer_360_router
+)
+
+app.include_router(
+    customer_events_router
+)
+
+app.include_router(
+    risk_router
+)
+
+app.include_router(
+    risk_summary_router
+)
+
+app.include_router(
+    insights_router
+)
+
+app.include_router(
+    next_best_action_router
+)
+
+app.include_router(
+    recommendations_router
+)
+
+app.include_router(
+    actions_router
+)
+
+app.include_router(
+    action_center_router
+)
+
+app.include_router(
+    outcomes_router
+)
+
+app.include_router(
+    priority_router
+)
+
+app.include_router(
+    impact_router
+)
+
+app.include_router(
+    imports_router
+)
+
+app.include_router(
+    import_preview_router
+)
+
+app.include_router(
+    import_validation_router
+)
+
+app.include_router(
+    ml_predictions_router
+)
 
 
 @app.get("/")
 def root():
     return {
-        "message": "AI Customer Retention Platform API",
+        "message": (
+            "AI Customer Retention Platform API"
+        ),
         "status": "running",
         "version": API_VERSION,
     }
@@ -84,17 +141,21 @@ def database_health():
     db = next(get_db())
 
     try:
-        db.execute(text("SELECT 1"))
+        db.execute(
+            text("SELECT 1")
+        )
 
         return {
             "status": "healthy",
             "database": "connected",
         }
+
     except Exception:
         return {
             "status": "unhealthy",
             "database": "unavailable",
         }
+
     finally:
         db.close()
 
