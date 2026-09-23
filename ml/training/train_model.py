@@ -13,6 +13,28 @@ MODEL_PATH = Path(
     "ml/models/churn_model.joblib"
 )
 
+FEATURES_PATH = Path(
+    "ml/models/churn_features.joblib"
+)
+
+
+def prepare_features(
+    df: pd.DataFrame,
+    target_column: str,
+):
+    X = df.drop(
+        columns=[target_column]
+    )
+
+    X = pd.get_dummies(
+        X,
+        drop_first=True,
+    )
+
+    X = X.fillna(0)
+
+    return X
+
 
 def train_churn_model(
     df: pd.DataFrame,
@@ -24,18 +46,12 @@ def train_churn_model(
             "not found."
         )
 
-    X = df.drop(
-        columns=[target_column]
+    X = prepare_features(
+        df,
+        target_column,
     )
 
     y = df[target_column]
-
-    X = pd.get_dummies(
-        X,
-        drop_first=True,
-    )
-
-    X = X.fillna(0)
 
     X_train, X_test, y_train, y_test = (
         train_test_split(
@@ -71,6 +87,7 @@ def train_churn_model(
         model,
         X_test,
         y_test,
+        list(X.columns),
     )
 
 
@@ -78,11 +95,14 @@ def train_and_save_model(
     df: pd.DataFrame,
     target_column: str = "churn",
 ):
-    model, X_test, y_test = (
-        train_churn_model(
-            df,
-            target_column,
-        )
+    (
+        model,
+        X_test,
+        y_test,
+        feature_columns,
+    ) = train_churn_model(
+        df,
+        target_column,
     )
 
     MODEL_PATH.parent.mkdir(
@@ -95,9 +115,20 @@ def train_and_save_model(
         MODEL_PATH,
     )
 
+    joblib.dump(
+        feature_columns,
+        FEATURES_PATH,
+    )
+
     return {
         "model_path": str(
             MODEL_PATH
+        ),
+        "features_path": str(
+            FEATURES_PATH
+        ),
+        "feature_count": len(
+            feature_columns
         ),
         "test_rows": len(X_test),
         "trained": True,
