@@ -746,8 +746,11 @@ export default function Customer360Page() {
                           style={{
                             margin: "4px 0 0",
                             color: "#64748b",
+                            fontSize: "14px",
+                            lineHeight: 1.5,
                           }}
                         >
+                          {factor.interpretation}
                           {factor.direction ===
                           "increases_risk"
                             ? "Increases churn risk"
