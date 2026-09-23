@@ -48,8 +48,7 @@ function RiskBadge({
   };
 
   const style =
-    styles[normalized] ||
-    {
+    styles[normalized] || {
       background: "#f1f5f9",
       color: "#475569",
     };
@@ -133,7 +132,12 @@ function ActionCard({
           flexWrap: "wrap",
         }}
       >
-        <div>
+        <div
+          style={{
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
           <div
             style={{
               display: "flex",
@@ -156,11 +160,41 @@ function ActionCard({
             </span>
           </div>
 
-          <div
+          <Link
+            href={`/customers/${encodeURIComponent(
+              item.customer_id,
+            )}`}
             style={{
-              fontSize: "18px",
+              fontSize: "19px",
               fontWeight: 700,
               color: "#0f172a",
+              textDecoration:
+                "none",
+            }}
+          >
+            {item.customer_name}
+          </Link>
+
+          {item.customer_email && (
+            <div
+              style={{
+                marginTop: "4px",
+                fontSize: "13px",
+                color: "#64748b",
+              }}
+            >
+              {item.customer_email}
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: "12px",
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "#334155",
+              textTransform:
+                "capitalize",
             }}
           >
             {item.action_type.replace(
@@ -446,26 +480,11 @@ export default function ActionCenterPage() {
         }}
       >
         {[
-          [
-            "Total",
-            data.total_actions,
-          ],
-          [
-            "Critical",
-            data.critical,
-          ],
-          [
-            "High",
-            data.high,
-          ],
-          [
-            "Medium",
-            data.medium,
-          ],
-          [
-            "Low",
-            data.low,
-          ],
+          ["Total", data.total_actions],
+          ["Critical", data.critical],
+          ["High", data.high],
+          ["Medium", data.medium],
+          ["Low", data.low],
         ].map(
           ([label, value]) => (
             <div
