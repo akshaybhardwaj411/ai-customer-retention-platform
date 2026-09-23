@@ -20,9 +20,7 @@ def prepare_explanation_features(
     customer_data: dict,
     feature_columns: list[str],
 ) -> pd.DataFrame:
-    dataframe = pd.DataFrame(
-        [customer_data]
-    )
+    dataframe = pd.DataFrame([customer_data])
 
     dataframe = pd.get_dummies(
         dataframe,
@@ -54,15 +52,10 @@ def explain_customer_prediction(
     if classifier is None:
         return []
 
-    if not hasattr(
-        classifier,
-        "coef_",
-    ):
+    if not hasattr(classifier, "coef_"):
         return []
 
-    scaler = model.named_steps.get(
-        "scaler"
-    )
+    scaler = model.named_steps.get("scaler")
 
     transformed_features = features
 
@@ -90,20 +83,24 @@ def explain_customer_prediction(
         features.columns,
         values,
     ):
+        impact = float(value)
+
         explanations.append(
             {
                 "feature": feature,
-                "label": _feature_label(
-                    feature
-                ),
+                "label": _feature_label(feature),
                 "impact": round(
-                    float(value),
+                    impact,
                     6,
                 ),
                 "direction": (
                     "increases_risk"
-                    if value > 0
+                    if impact > 0
                     else "decreases_risk"
+                ),
+                "interpretation": _interpret_factor(
+                    feature=feature,
+                    impact=impact,
                 ),
             }
         )
@@ -124,22 +121,35 @@ def _feature_label(
     if feature in FEATURE_LABELS:
         return FEATURE_LABELS[feature]
 
-    for base_feature, label in (
-        FEATURE_LABELS.items()
-    ):
+    for base_feature, label in FEATURE_LABELS.items():
         prefix = f"{base_feature}_"
 
         if feature.startswith(prefix):
-            value = feature[
-                len(prefix):
-            ]
+            value = feature[len(prefix):]
 
             return (
-                f"{label}: "
-                f"{value}"
+                f"{label}: {value}"
             )
 
     return feature.replace(
         "_",
         " ",
     ).title()
+
+
+def _interpret_factor(
+    feature: str,
+    impact: float,
+) -> str:
+    label = _feature_label(feature)
+
+    if impact > 0:
+        direction = (
+            "is contributing to higher churn risk"
+        )
+    else:
+        direction = (
+            "is contributing to lower churn risk"
+        )
+
+    return f"{label} {direction}."
