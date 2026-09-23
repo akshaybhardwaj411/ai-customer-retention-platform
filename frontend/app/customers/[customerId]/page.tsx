@@ -728,50 +728,38 @@ export default function Customer360Page() {
                       key={`${factor.feature}-${factor.impact}`}
                       style={{
                         display: "flex",
-                        justifyContent:
-                          "space-between",
-                        alignItems:
-                          "center",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                         gap: "16px",
-                        padding:
-                          "14px 16px",
-                        background:
-                          "#f8fafc",
-                        border:
-                          "1px solid #e2e8f0",
-                        borderRadius:
-                          "8px",
+                        padding: "14px 16px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
                       }}
                     >
                       <div>
                         <strong>
-                          {
-                            factor.feature
-                          }
+                          {factor.label}
                         </strong>
-
+                        
                         <p
                           style={{
-                            margin:
-                              "4px 0 0",
-                            color:
-                              "#64748b",
+                            margin: "4px 0 0",
+                            color: "#64748b",
                           }}
                         >
                           {factor.direction ===
                           "increases_risk"
                             ? "Increases churn risk"
-                            : "Decreases churn risk"}
+                          : "Decreases churn risk"}
                         </p>
                       </div>
-
+                      
                       <strong>
                         {factor.impact > 0
                           ? "+"
-                          : ""}
-                        {factor.impact.toFixed(
-                          3,
-                        )}
+                        : ""}
+                        {factor.impact.toFixed(3)}
                       </strong>
                     </div>
                   ),
