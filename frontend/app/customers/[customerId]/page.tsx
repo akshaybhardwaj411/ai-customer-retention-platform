@@ -8,19 +8,28 @@ import {
   getCustomer360,
   Customer360,
 } from "../../../lib/customer-360";
+
 import {
   getCustomerInsight,
   CustomerInsight,
 } from "../../../lib/insights";
+
 import {
   getNextBestAction,
   NextBestAction,
 } from "../../../lib/next-best-action";
 
+import {
+  getCustomerPriority,
+  CustomerPriority,
+} from "../../../lib/priority";
+
 
 export default function Customer360Page() {
   const params = useParams();
-  const customerId = String(params.customerId);
+  const customerId = String(
+    params.customerId,
+  );
 
   const [data, setData] =
     useState<Customer360 | null>(null);
@@ -30,6 +39,9 @@ export default function Customer360Page() {
 
   const [nextBestAction, setNextBestAction] =
     useState<NextBestAction | null>(null);
+
+  const [priority, setPriority] =
+    useState<CustomerPriority | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -54,30 +66,41 @@ export default function Customer360Page() {
       }
 
       try {
-       const [
-         customer360,
-         customerInsight,
-         customerNextBestAction,
-       ] = await Promise.all([
-         getCustomer360(
-           customerId,
-           organizationId,
-         ),
-         getCustomerInsight(
-           customerId,
-           organizationId,
-         ),
-         getNextBestAction(
-           customerId,
-           organizationId,
-         ),
-       ]);
+        const [
+          customer360,
+          customerInsight,
+          customerNextBestAction,
+          customerPriority,
+        ] = await Promise.all([
+          getCustomer360(
+            customerId,
+            organizationId,
+          ),
+
+          getCustomerInsight(
+            customerId,
+            organizationId,
+          ),
+
+          getNextBestAction(
+            customerId,
+            organizationId,
+          ),
+
+          getCustomerPriority(
+            customerId,
+            organizationId,
+            0.8,
+            0.8,
+          ),
+        ]);
 
         setData(customer360);
         setInsight(customerInsight);
         setNextBestAction(
           customerNextBestAction,
         );
+        setPriority(customerPriority);
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -190,6 +213,26 @@ export default function Customer360Page() {
                 ? `${(
                     probability * 100
                   ).toFixed(1)}%`
+                : "Unavailable"
+            }
+          />
+
+          <InfoCard
+            title="Priority"
+            value={
+              priority
+                ? priority.priority_level
+                : "Unavailable"
+            }
+          />
+
+          <InfoCard
+            title="Priority Score"
+            value={
+              priority
+                ? priority.priority_score.toFixed(
+                    3,
+                  )
                 : "Unavailable"
             }
           />
