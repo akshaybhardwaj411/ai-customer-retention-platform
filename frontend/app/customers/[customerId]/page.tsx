@@ -24,12 +24,15 @@ import {
   CustomerPriority,
 } from "../../../lib/priority";
 
+import {
+  predictCustomerChurn,
+  ChurnPrediction,
+} from "../../../lib/ml";
+
 
 export default function Customer360Page() {
   const params = useParams();
-  const customerId = String(
-    params.customerId,
-  );
+  const customerId = String(params.customerId);
 
   const [data, setData] =
     useState<Customer360 | null>(null);
@@ -43,10 +46,19 @@ export default function Customer360Page() {
   const [priority, setPriority] =
     useState<CustomerPriority | null>(null);
 
+  const [prediction, setPrediction] =
+    useState<ChurnPrediction | null>(null);
+
   const [loading, setLoading] =
     useState(true);
 
+  const [predicting, setPredicting] =
+    useState(false);
+
   const [error, setError] =
+    useState("");
+
+  const [predictionError, setPredictionError] =
     useState("");
 
 
@@ -90,8 +102,8 @@ export default function Customer360Page() {
           getCustomerPriority(
             customerId,
             organizationId,
-            0.8,
-            0.8,
+            0.5,
+            0.5,
           ),
         ]);
 
@@ -101,6 +113,7 @@ export default function Customer360Page() {
           customerNextBestAction,
         );
         setPriority(customerPriority);
+
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -114,6 +127,46 @@ export default function Customer360Page() {
 
     loadCustomer();
   }, [customerId]);
+
+
+  async function handlePrediction() {
+    const organizationId =
+      localStorage.getItem(
+        "organization_id",
+      );
+
+    if (!organizationId || !data) {
+      setPredictionError(
+        "Customer or organization information is unavailable.",
+      );
+      return;
+    }
+
+    setPredicting(true);
+    setPredictionError("");
+
+    try {
+      const result =
+        await predictCustomerChurn(
+          customerId,
+          organizationId,
+          {
+            customer_id: customerId,
+          },
+        );
+
+      setPrediction(result);
+
+    } catch (requestError) {
+      setPredictionError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to generate churn prediction.",
+      );
+    } finally {
+      setPredicting(false);
+    }
+  }
 
 
   if (loading) {
@@ -257,6 +310,114 @@ export default function Customer360Page() {
           }}
         >
           <h2>
+            ML Churn Prediction
+          </h2>
+
+          <p
+            style={{
+              color: "#64748b",
+            }}
+          >
+            Run the trained churn model
+            for this customer.
+          </p>
+
+          <button
+            type="button"
+            onClick={handlePrediction}
+            disabled={predicting}
+            style={{
+              padding:
+                "10px 16px",
+              border: "none",
+              borderRadius: "8px",
+              background:
+                "#0f172a",
+              color: "white",
+              fontWeight: 600,
+              cursor:
+                predicting
+                  ? "not-allowed"
+                  : "pointer",
+              opacity:
+                predicting
+                  ? 0.6
+                  : 1,
+            }}
+          >
+            {predicting
+              ? "Predicting..."
+              : "Run Churn Prediction"}
+          </button>
+
+          {predictionError && (
+            <p
+              style={{
+                marginTop: "16px",
+                color: "#b91c1c",
+              }}
+            >
+              {predictionError}
+            </p>
+          )}
+
+          {prediction && (
+            <div
+              style={{
+                marginTop: "20px",
+                padding: "16px",
+                background:
+                  "#f8fafc",
+                border:
+                  "1px solid #e2e8f0",
+                borderRadius: "8px",
+              }}
+            >
+              <p>
+                <strong>
+                  Churn Probability:
+                </strong>{" "}
+                {(
+                  prediction.churn_probability *
+                  100
+                ).toFixed(1)}
+                %
+              </p>
+
+              <p>
+                <strong>
+                  Risk Level:
+                </strong>{" "}
+                {prediction.risk_level}
+              </p>
+
+              <small
+                style={{
+                  color:
+                    "#64748b",
+                }}
+              >
+                Prediction generated{" "}
+                {new Date(
+                  prediction.created_at,
+                ).toLocaleString()}
+              </small>
+            </div>
+          )}
+        </section>
+
+
+        <section
+          style={{
+            marginTop: "24px",
+            padding: "24px",
+            background: "white",
+            border:
+              "1px solid #e2e8f0",
+            borderRadius: "12px",
+          }}
+        >
+          <h2>
             AI Insight
           </h2>
 
@@ -265,7 +426,8 @@ export default function Customer360Page() {
               "No insight available."}
           </p>
 
-          {insight?.risk_factors?.length ? (
+          {insight?.risk_factors
+            ?.length ? (
             <>
               <h3>
                 Risk Factors
@@ -284,7 +446,8 @@ export default function Customer360Page() {
           ) : (
             <p
               style={{
-                color: "#64748b",
+                color:
+                  "#64748b",
               }}
             >
               No specific risk factors
@@ -312,13 +475,17 @@ export default function Customer360Page() {
             <>
               <p>
                 <strong>
-                  {nextBestAction.action}
+                  {
+                    nextBestAction.action
+                  }
                 </strong>
               </p>
 
               <p>
-                {nextBestAction.reason ||
-                  "No reason provided."}
+                {
+                  nextBestAction.reason ||
+                  "No reason provided."
+                }
               </p>
 
               {nextBestAction.expected_value !==
@@ -334,11 +501,12 @@ export default function Customer360Page() {
           ) : (
             <p
               style={{
-                color: "#64748b",
+                color:
+                  "#64748b",
               }}
             >
-              No recommended action is
-              available yet.
+              No recommended action
+              is available yet.
             </p>
           )}
         </section>
@@ -358,13 +526,16 @@ export default function Customer360Page() {
             Customer Timeline
           </h2>
 
-          {data.timeline.length === 0 ? (
+          {data.timeline.length ===
+          0 ? (
             <p
               style={{
-                color: "#64748b",
+                color:
+                  "#64748b",
               }}
             >
-              No customer events recorded.
+              No customer events
+              recorded.
             </p>
           ) : (
             <div>
@@ -380,12 +551,16 @@ export default function Customer360Page() {
                     }}
                   >
                     <strong>
-                      {event.event_type}
+                      {
+                        event.event_type
+                      }
                     </strong>
 
                     <p>
-                      {event.description ||
-                        "No description"}
+                      {
+                        event.description ||
+                        "No description"
+                      }
                     </p>
 
                     <small
