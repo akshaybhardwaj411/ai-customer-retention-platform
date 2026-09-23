@@ -185,3 +185,16 @@ export async function getCampaignCustomers(
     )}`,
   );
 }
+
+export async function getCampaign(
+  campaignId: string,
+  organizationId: string,
+): Promise<Campaign> {
+  return apiRequest<Campaign>(
+    `/campaigns/${encodeURIComponent(
+      campaignId,
+    )}?organization_id=${encodeURIComponent(
+      organizationId,
+    )}`,
+  );
+}
