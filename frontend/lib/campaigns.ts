@@ -63,6 +63,19 @@ export type CampaignAnalytics = {
 };
 
 
+export type CampaignCustomer = {
+  id: string;
+  campaign_id: string;
+  customer_id: string;
+  retention_action_id: string | null;
+  customer_name: string;
+  customer_email: string | null;
+  status: string;
+  outcome: string | null;
+  created_at: string;
+};
+
+
 export async function getCampaigns(
   organizationId: string,
 ): Promise<Campaign[]> {
@@ -154,6 +167,20 @@ export async function getCampaignAnalytics(
     `/campaigns/${encodeURIComponent(
       campaignId,
     )}/analytics?organization_id=${encodeURIComponent(
+      organizationId,
+    )}`,
+  );
+}
+
+
+export async function getCampaignCustomers(
+  campaignId: string,
+  organizationId: string,
+): Promise<CampaignCustomer[]> {
+  return apiRequest<CampaignCustomer[]>(
+    `/campaigns/${encodeURIComponent(
+      campaignId,
+    )}/customers?organization_id=${encodeURIComponent(
       organizationId,
     )}`,
   );
