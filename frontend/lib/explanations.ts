@@ -3,6 +3,7 @@ import { apiRequest } from "./api";
 
 export type RiskFactor = {
   feature: string;
+  label: string;
   impact: number;
   direction:
     | "increases_risk"
