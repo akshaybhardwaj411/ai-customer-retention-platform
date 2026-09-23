@@ -38,6 +38,10 @@ import {
   executeRetentionAction,
 } from "@/lib/actions";
 
+import {
+  createActionOutcome,
+} from "@/lib/outcomes";
+
 
 function InfoCard({
   title,
@@ -172,6 +176,9 @@ export default function Customer360Page() {
   const [executeLoading, setExecuteLoading] =
     useState(false);
 
+  const [outcomeLoading, setOutcomeLoading] =
+    useState(false);
+
   const [error, setError] =
     useState<string | null>(null);
 
@@ -187,6 +194,11 @@ export default function Customer360Page() {
   const [actionSuccess, setActionSuccess] =
     useState<string | null>(null);
 
+  const [outcomeError, setOutcomeError] =
+    useState<string | null>(null);
+
+  const [outcomeSuccess, setOutcomeSuccess] =
+    useState<string | null>(null);
 
   const [tenure, setTenure] =
     useState("");
@@ -211,6 +223,15 @@ export default function Customer360Page() {
 
   const [techSupport, setTechSupport] =
     useState("");
+
+  const [outcome, setOutcome] =
+    useState("saved");
+
+  const [revenueSaved, setRevenueSaved] =
+    useState("");
+
+  const [executedActionId, setExecutedActionId] =
+    useState<string | null>(null);
 
 
   useEffect(() => {
@@ -418,6 +439,7 @@ export default function Customer360Page() {
       setExecuteLoading(true);
       setActionError(null);
       setActionSuccess(null);
+      setOutcomeSuccess(null);
 
       const action =
         await createRetentionAction(
@@ -434,19 +456,13 @@ export default function Customer360Page() {
           organizationId,
         );
 
+      setExecutedActionId(
+        action.id,
+      );
+
       setActionSuccess(
         result.message ||
           "Retention action executed successfully.",
-      );
-
-      const updatedAction =
-        await getNextBestAction(
-          customerId,
-          organizationId,
-        );
-
-      setNextBestAction(
-        updatedAction,
       );
     } catch (executeError) {
       setActionError(
@@ -456,6 +472,60 @@ export default function Customer360Page() {
       );
     } finally {
       setExecuteLoading(false);
+    }
+  }
+
+
+  async function handleRecordOutcome() {
+    if (
+      !organizationId ||
+      !customerId ||
+      !executedActionId
+    ) {
+      return;
+    }
+
+    try {
+      setOutcomeLoading(true);
+      setOutcomeError(null);
+      setOutcomeSuccess(null);
+
+      const parsedRevenue =
+        revenueSaved.trim()
+          ? Number(revenueSaved)
+          : undefined;
+
+      if (
+        parsedRevenue !== undefined &&
+        (
+          Number.isNaN(parsedRevenue) ||
+          parsedRevenue < 0
+        )
+      ) {
+        throw new Error(
+          "Revenue saved must be a valid positive number.",
+        );
+      }
+
+      await createActionOutcome(
+        organizationId,
+        executedActionId,
+        customerId,
+        outcome,
+        parsedRevenue,
+      );
+
+      setOutcomeSuccess(
+        "Action outcome recorded successfully.",
+      );
+    } catch (outcomeErrorValue) {
+      setOutcomeError(
+        outcomeErrorValue instanceof Error
+          ? outcomeErrorValue.message
+          : "Unable to record action outcome.",
+      );
+    } finally {
+      setOutcomeLoading(false);
     }
   }
 
@@ -1007,8 +1077,6 @@ export default function Customer360Page() {
       </section>
 
 
-      {/* Next Best Action */}
-
       <section
         style={{
           background: "#ffffff",
@@ -1155,8 +1223,6 @@ export default function Customer360Page() {
             )}
 
 
-            {/* Execute */}
-
             <div
               style={{
                 marginTop: "18px",
@@ -1165,39 +1231,45 @@ export default function Customer360Page() {
                 gap: "10px",
               }}
             >
-              <button
-                type="button"
-                onClick={
-                  handleExecuteAction
-                }
-                disabled={executeLoading}
-                style={{
-                  alignSelf: "flex-start",
-                  padding:
-                    "11px 20px",
-                  border: 0,
-                  borderRadius:
-                    "8px",
-                  background:
-                    "#0f172a",
-                  color:
-                    "#ffffff",
-                  cursor:
+              {!executedActionId && (
+                <button
+                  type="button"
+                  onClick={
+                    handleExecuteAction
+                  }
+                  disabled={
                     executeLoading
-                      ? "not-allowed"
-                      : "pointer",
-                  opacity:
-                    executeLoading
-                      ? 0.7
-                      : 1,
-                  fontWeight:
-                    600,
-                }}
-              >
-                {executeLoading
-                  ? "Executing..."
-                  : "Execute Action"}
-              </button>
+                  }
+                  style={{
+                    alignSelf:
+                      "flex-start",
+                    padding:
+                      "11px 20px",
+                    border: 0,
+                    borderRadius:
+                      "8px",
+                    background:
+                      "#0f172a",
+                    color:
+                      "#ffffff",
+                    cursor:
+                      executeLoading
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity:
+                      executeLoading
+                        ? 0.7
+                        : 1,
+                    fontWeight:
+                      600,
+                  }}
+                >
+                  {executeLoading
+                    ? "Executing..."
+                    : "Execute Action"}
+                </button>
+              )}
+
 
               {actionSuccess && (
                 <div
@@ -1220,6 +1292,7 @@ export default function Customer360Page() {
                 </div>
               )}
 
+
               {actionError && (
                 <div
                   style={{
@@ -1241,12 +1314,205 @@ export default function Customer360Page() {
                 </div>
               )}
             </div>
+
+
+            {executedActionId && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "18px",
+                  border:
+                    "1px solid #e2e8f0",
+                  borderRadius: "10px",
+                  background: "#ffffff",
+                }}
+              >
+                <h3
+                  style={{
+                    margin:
+                      "0 0 14px",
+                    fontSize: "16px",
+                  }}
+                >
+                  Record Action Outcome
+                </h3>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: "14px",
+                  }}
+                >
+                  <label
+                    style={{
+                      display:
+                        "flex",
+                      flexDirection:
+                        "column",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize:
+                          "13px",
+                        fontWeight:
+                          600,
+                        color:
+                          "#475569",
+                      }}
+                    >
+                      Outcome
+                    </span>
+
+                    <select
+                      value={outcome}
+                      onChange={(
+                        event,
+                      ) =>
+                        setOutcome(
+                          event.target
+                            .value,
+                        )
+                      }
+                      style={{
+                        padding:
+                          "10px 12px",
+                        border:
+                          "1px solid #cbd5e1",
+                        borderRadius:
+                          "8px",
+                        background:
+                          "#ffffff",
+                        color:
+                          "#0f172a",
+                      }}
+                    >
+                      <option value="saved">
+                        Saved
+                      </option>
+
+                      <option value="not_saved">
+                        Not Saved
+                      </option>
+
+                      <option value="no_response">
+                        No Response
+                      </option>
+
+                      <option value="unknown">
+                        Unknown
+                      </option>
+                    </select>
+                  </label>
+
+
+                  <InputField
+                    label="Revenue Saved"
+                    value={
+                      revenueSaved
+                    }
+                    onChange={
+                      setRevenueSaved
+                    }
+                    type="number"
+                    placeholder="e.g. 499.00"
+                  />
+                </div>
+
+
+                <button
+                  type="button"
+                  onClick={
+                    handleRecordOutcome
+                  }
+                  disabled={
+                    outcomeLoading
+                  }
+                  style={{
+                    marginTop:
+                      "16px",
+                    padding:
+                      "11px 18px",
+                    border: 0,
+                    borderRadius:
+                      "8px",
+                    background:
+                      "#0f172a",
+                    color:
+                      "#ffffff",
+                    cursor:
+                      outcomeLoading
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity:
+                      outcomeLoading
+                        ? 0.7
+                        : 1,
+                    fontWeight:
+                      600,
+                  }}
+                >
+                  {outcomeLoading
+                    ? "Recording..."
+                    : "Record Outcome"}
+                </button>
+
+
+                {outcomeSuccess && (
+                  <div
+                    style={{
+                      marginTop:
+                        "10px",
+                      padding:
+                        "10px 12px",
+                      background:
+                        "#f0fdf4",
+                      border:
+                        "1px solid #bbf7d0",
+                      borderRadius:
+                        "8px",
+                      color:
+                        "#166534",
+                      fontSize:
+                        "14px",
+                    }}
+                  >
+                    {outcomeSuccess}
+                  </div>
+                )}
+
+
+                {outcomeError && (
+                  <div
+                    style={{
+                      marginTop:
+                        "10px",
+                      padding:
+                        "10px 12px",
+                      background:
+                        "#fef2f2",
+                      border:
+                        "1px solid #fecaca",
+                      borderRadius:
+                        "8px",
+                      color:
+                        "#991b1b",
+                      fontSize:
+                        "14px",
+                    }}
+                  >
+                    {outcomeError}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </section>
 
-
-      {/* Timeline */}
 
       <section
         style={{
