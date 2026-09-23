@@ -21,13 +21,30 @@ router = APIRouter(
 )
 
 
-@router.get("/{customer_id}")
-def get_next_best_action(
+def _get_latest_prediction(
     customer_id: UUID,
     organization_id: UUID,
-    db: Session = Depends(get_db),
+    db: Session,
 ):
-    recommendation = (
+    return (
+        db.query(Prediction)
+        .filter(
+            Prediction.customer_id == customer_id,
+            Prediction.organization_id == organization_id,
+        )
+        .order_by(
+            Prediction.created_at.desc()
+        )
+        .first()
+    )
+
+
+def _get_pending_recommendation(
+    customer_id: UUID,
+    organization_id: UUID,
+    db: Session,
+):
+    return (
         db.query(Recommendation)
         .filter(
             Recommendation.customer_id == customer_id,
@@ -40,26 +57,43 @@ def get_next_best_action(
         .first()
     )
 
-    if recommendation:
+
+@router.get("/{customer_id}")
+def get_next_best_action(
+    customer_id: UUID,
+    organization_id: UUID,
+    db: Session = Depends(get_db),
+):
+    # --------------------------------------------------
+    # 1. Return an existing pending recommendation
+    # --------------------------------------------------
+
+    existing_recommendation = (
+        _get_pending_recommendation(
+            customer_id=customer_id,
+            organization_id=organization_id,
+            db=db,
+        )
+    )
+
+    if existing_recommendation:
         return {
             "customer_id": str(customer_id),
-            "action": recommendation.action_type,
-            "reason": recommendation.reason,
+            "action": existing_recommendation.action_type,
+            "reason": existing_recommendation.reason,
             "expected_value": None,
-            "status": recommendation.status,
+            "status": existing_recommendation.status,
             "source": "stored_recommendation",
         }
 
-    prediction = (
-        db.query(Prediction)
-        .filter(
-            Prediction.customer_id == customer_id,
-            Prediction.organization_id == organization_id,
-        )
-        .order_by(
-            Prediction.created_at.desc()
-        )
-        .first()
+    # --------------------------------------------------
+    # 2. Check whether a churn prediction exists
+    # --------------------------------------------------
+
+    prediction = _get_latest_prediction(
+        customer_id=customer_id,
+        organization_id=organization_id,
+        db=db,
     )
 
     if not prediction:
@@ -72,10 +106,17 @@ def get_next_best_action(
             "source": "no_prediction",
         }
 
+    # --------------------------------------------------
+    # 3. Check ML readiness
+    # --------------------------------------------------
+
     model = load_model()
     feature_columns = load_feature_columns()
 
-    if model is None or feature_columns is None:
+    if (
+        model is None
+        or feature_columns is None
+    ):
         return {
             "customer_id": str(customer_id),
             "action": "review_customer",
@@ -88,23 +129,37 @@ def get_next_best_action(
             "source": "fallback",
         }
 
-    # Customer 360 prediction fields are currently
-    # the supported explanation inputs.
-    customer_data = {}
+    # --------------------------------------------------
+    # 4. Generate recommendation
+    #
+    # NOTE:
+    # The prediction endpoint currently receives and
+    # stores customer prediction data but does not yet
+    # persist that raw feature payload.
+    #
+    # Therefore this endpoint uses a safe fallback
+    # until customer feature persistence is added.
+    # --------------------------------------------------
+
+    risk_factors = []
 
     try:
         risk_factors = explain_customer_churn(
             model=model,
-            customer_data=customer_data,
+            customer_data={},
         )
     except Exception:
         risk_factors = []
 
     recommendation_data = (
         generate_recommendation(
-            risk_factors
+            risk_factors=risk_factors,
         )
     )
+
+    # --------------------------------------------------
+    # 5. Persist recommendation
+    # --------------------------------------------------
 
     recommendation = Recommendation(
         organization_id=organization_id,
