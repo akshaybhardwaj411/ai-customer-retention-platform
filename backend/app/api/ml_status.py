@@ -25,41 +25,50 @@ def get_ml_status():
         load_model_metadata()
     )
 
-    if model is None:
+    model_available = (
+        model is not None
+    )
+
+    features_available = (
+        feature_columns is not None
+    )
+
+    metadata_available = (
+        metadata is not None
+    )
+
+    ready = (
+        model_available
+        and features_available
+        and metadata_available
+    )
+
+    if not ready:
         return {
             "status": "not_ready",
-            "model_available": False,
-            "features_available": (
-                feature_columns is not None
-            ),
-            "metadata_available": (
-                metadata is not None
-            ),
+            "model_available": model_available,
+            "features_available": features_available,
+            "metadata_available": metadata_available,
             "feature_count": (
                 len(feature_columns)
                 if feature_columns
                 else 0
             ),
-            "training": None,
+            "training": metadata,
             "message": (
-                "Churn model has not "
-                "been trained yet."
+                "ML system is not fully ready. "
+                "Model, feature columns, and "
+                "training metadata are required."
             ),
         }
 
     return {
         "status": "ready",
         "model_available": True,
-        "features_available": (
-            feature_columns is not None
-        ),
-        "metadata_available": (
-            metadata is not None
-        ),
-        "feature_count": (
-            len(feature_columns)
-            if feature_columns
-            else 0
+        "features_available": True,
+        "metadata_available": True,
+        "feature_count": len(
+            feature_columns
         ),
         "training": metadata,
         "message": (
