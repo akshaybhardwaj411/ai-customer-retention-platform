@@ -19,11 +19,12 @@ def get_impact(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
-    base_query = db.query(
-        ActionOutcome
-    ).filter(
-        ActionOutcome.organization_id
-        == organization_id
+    base_query = (
+        db.query(ActionOutcome)
+        .filter(
+            ActionOutcome.organization_id
+            == organization_id
+        )
     )
 
     total_outcomes = (
@@ -85,14 +86,20 @@ def get_impact(
         )
         .filter(
             ActionOutcome.organization_id
-            == organization_id
+            == organization_id,
+            ActionOutcome.outcome
+            == "saved",
         )
         .scalar()
     )
 
+    resolved_outcomes = (
+        saved + not_saved
+    )
+
     save_rate = (
-        saved / total_outcomes
-        if total_outcomes > 0
+        saved / resolved_outcomes
+        if resolved_outcomes > 0
         else 0
     )
 
@@ -102,6 +109,8 @@ def get_impact(
         "customers_not_saved": not_saved,
         "no_response": no_response,
         "unknown": unknown,
+        "resolved_outcomes":
+            resolved_outcomes,
         "revenue_saved": float(
             revenue_saved or 0
         ),
