@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
@@ -21,6 +22,10 @@ MODEL_PATH = Path(
 
 FEATURES_PATH = Path(
     "ml/models/churn_features.joblib"
+)
+
+METADATA_PATH = Path(
+    "ml/models/churn_metadata.joblib"
 )
 
 
@@ -169,6 +174,29 @@ def train_and_save_model(
         FEATURES_PATH,
     )
 
+    metadata = {
+        "model_type": (
+            "logistic_regression"
+        ),
+        "trained_at": (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        ),
+        "feature_count": len(
+            feature_columns
+        ),
+        "test_rows": len(
+            X_test
+        ),
+        "metrics": metrics,
+    }
+
+    joblib.dump(
+        metadata,
+        METADATA_PATH,
+    )
+
     return {
         "model_path": str(
             MODEL_PATH
@@ -176,10 +204,18 @@ def train_and_save_model(
         "features_path": str(
             FEATURES_PATH
         ),
+        "metadata_path": str(
+            METADATA_PATH
+        ),
         "feature_count": len(
             feature_columns
         ),
-        "test_rows": len(X_test),
+        "test_rows": len(
+            X_test
+        ),
         "metrics": metrics,
+        "trained_at": metadata[
+            "trained_at"
+        ],
         "trained": True,
     }
