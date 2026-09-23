@@ -1,5 +1,6 @@
 import { apiRequest } from "./api";
 
+
 export type ActionOutcome = {
   id: string;
   action_id: string;
@@ -7,6 +8,7 @@ export type ActionOutcome = {
   outcome: string;
   revenue_saved: number | null;
 };
+
 
 export async function createActionOutcome(
   organizationId: string,
@@ -20,11 +22,13 @@ export async function createActionOutcome(
     {
       method: "POST",
       body: JSON.stringify({
-        organization_id: organizationId,
+        organization_id:
+          organizationId,
         action_id: actionId,
         customer_id: customerId,
         outcome,
-        revenue_saved: revenueSaved ?? null,
+        revenue_saved:
+          revenueSaved ?? null,
       }),
     },
   );
