@@ -1,5 +1,6 @@
 import { apiRequest } from "./api";
 
+
 export type RetentionAction = {
   id: string;
   customer_id: string;
@@ -7,6 +8,13 @@ export type RetentionAction = {
   status: string;
   recommendation: string | null;
 };
+
+
+export type ExecutedRetentionAction =
+  RetentionAction & {
+    message: string;
+  };
+
 
 export async function createRetentionAction(
   organizationId: string,
@@ -19,7 +27,8 @@ export async function createRetentionAction(
     {
       method: "POST",
       body: JSON.stringify({
-        organization_id: organizationId,
+        organization_id:
+          organizationId,
         customer_id: customerId,
         action_type: actionType,
         recommendation:
@@ -29,19 +38,12 @@ export async function createRetentionAction(
   );
 }
 
+
 export async function executeRetentionAction(
   actionId: string,
   organizationId: string,
-): Promise<
-  RetentionAction & {
-    message: string;
-  }
-> {
-  return apiRequest<
-    RetentionAction & {
-      message: string;
-    }
-  >(
+): Promise<ExecutedRetentionAction> {
+  return apiRequest<ExecutedRetentionAction>(
     `/actions/${encodeURIComponent(
       actionId,
     )}/execute?organization_id=${encodeURIComponent(
