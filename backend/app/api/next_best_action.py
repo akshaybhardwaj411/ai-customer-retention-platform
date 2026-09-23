@@ -65,7 +65,7 @@ def get_next_best_action(
     db: Session = Depends(get_db),
 ):
     # --------------------------------------------------
-    # 1. Return an existing pending recommendation
+    # 1. Return an existing recommendation
     # --------------------------------------------------
 
     existing_recommendation = (
@@ -87,7 +87,7 @@ def get_next_best_action(
         }
 
     # --------------------------------------------------
-    # 2. Check whether a churn prediction exists
+    # 2. Get latest prediction
     # --------------------------------------------------
 
     prediction = _get_latest_prediction(
@@ -130,26 +130,42 @@ def get_next_best_action(
         }
 
     # --------------------------------------------------
-    # 4. Generate recommendation
-    #
-    # NOTE:
-    # The prediction endpoint currently receives and
-    # stores customer prediction data but does not yet
-    # persist that raw feature payload.
-    #
-    # Therefore this endpoint uses a safe fallback
-    # until customer feature persistence is added.
+    # 4. Get persisted customer features
     # --------------------------------------------------
 
-    risk_factors = []
+    customer_features = (
+        prediction.customer_features
+        or {}
+    )
+
+    if not customer_features:
+        return {
+            "customer_id": str(customer_id),
+            "action": "review_customer",
+            "reason": (
+                "Customer prediction features are not "
+                "available for recommendation generation."
+            ),
+            "expected_value": None,
+            "status": "available",
+            "source": "missing_features",
+        }
+
+    # --------------------------------------------------
+    # 5. Generate SHAP risk factors
+    # --------------------------------------------------
 
     try:
         risk_factors = explain_customer_churn(
             model=model,
-            customer_data={},
+            customer_data=customer_features,
         )
     except Exception:
         risk_factors = []
+
+    # --------------------------------------------------
+    # 6. Generate recommendation
+    # --------------------------------------------------
 
     recommendation_data = (
         generate_recommendation(
@@ -158,7 +174,7 @@ def get_next_best_action(
     )
 
     # --------------------------------------------------
-    # 5. Persist recommendation
+    # 7. Persist recommendation
     # --------------------------------------------------
 
     recommendation = Recommendation(
@@ -176,6 +192,10 @@ def get_next_best_action(
     db.add(recommendation)
     db.commit()
     db.refresh(recommendation)
+
+    # --------------------------------------------------
+    # 8. Return Next Best Action
+    # --------------------------------------------------
 
     return {
         "customer_id": str(customer_id),
