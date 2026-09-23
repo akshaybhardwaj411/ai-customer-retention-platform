@@ -10,6 +10,7 @@ from app.models.campaign import Campaign
 from app.models.campaign_customer import CampaignCustomer
 from app.models.customer import Customer
 from app.models.prediction import Prediction
+from app.models.retention_action import RetentionAction
 
 
 router = APIRouter(
@@ -73,8 +74,9 @@ ALLOWED_SEGMENTS = {
 
 def _serialize_campaign(
     campaign: Campaign,
+    customer_count: int | None = None,
 ):
-    return {
+    response = {
         "id": str(campaign.id),
         "organization_id": str(
             campaign.organization_id
@@ -89,6 +91,13 @@ def _serialize_campaign(
         "end_date": campaign.end_date,
         "created_at": campaign.created_at,
     }
+
+    if customer_count is not None:
+        response["customer_count"] = (
+            customer_count
+        )
+
+    return response
 
 
 def _get_latest_predictions(
@@ -198,10 +207,28 @@ def list_campaigns(
         .all()
     )
 
-    return [
-        _serialize_campaign(campaign)
-        for campaign in campaigns
-    ]
+    response = []
+
+    for campaign in campaigns:
+        customer_count = (
+            db.query(CampaignCustomer)
+            .filter(
+                CampaignCustomer.campaign_id
+                == campaign.id,
+                CampaignCustomer.organization_id
+                == organization_id,
+            )
+            .count()
+        )
+
+        response.append(
+            _serialize_campaign(
+                campaign,
+                customer_count,
+            )
+        )
+
+    return response
 
 
 @router.get("/{campaign_id}")
@@ -237,15 +264,10 @@ def get_campaign(
         .count()
     )
 
-    response = _serialize_campaign(
-        campaign
+    return _serialize_campaign(
+        campaign,
+        customer_count,
     )
-
-    response["customer_count"] = (
-        customer_count
-    )
-
-    return response
 
 
 @router.patch(
@@ -284,6 +306,27 @@ def update_campaign_status(
             status_code=404,
             detail="Campaign not found.",
         )
+
+    if status == "active":
+        customer_count = (
+            db.query(CampaignCustomer)
+            .filter(
+                CampaignCustomer.campaign_id
+                == campaign_id,
+                CampaignCustomer.organization_id
+                == data.organization_id,
+            )
+            .count()
+        )
+
+        if customer_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Campaign cannot be activated "
+                    "without targeted customers."
+                ),
+            )
 
     campaign.status = status
 
@@ -335,6 +378,19 @@ def target_campaign_customers(
         raise HTTPException(
             status_code=404,
             detail="Campaign not found.",
+        )
+
+    if campaign.status not in {
+        "draft",
+        "scheduled",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Customers can only be targeted "
+                "while the campaign is draft "
+                "or scheduled."
+            ),
         )
 
     customers = (
@@ -478,7 +534,7 @@ def list_campaign_customers(
             == organization_id,
             Customer.id.in_(
                 customer_ids
-            )
+            ),
         )
         .all()
         if customer_ids
@@ -522,3 +578,120 @@ def list_campaign_customers(
         }
         for item in campaign_customers
     ]
+
+
+@router.post(
+    "/{campaign_id}/execute"
+)
+def execute_campaign(
+    campaign_id: UUID,
+    organization_id: UUID,
+    db: Session = Depends(get_db),
+):
+    campaign = (
+        db.query(Campaign)
+        .filter(
+            Campaign.id == campaign_id,
+            Campaign.organization_id
+            == organization_id,
+        )
+        .first()
+    )
+
+    if not campaign:
+        raise HTTPException(
+            status_code=404,
+            detail="Campaign not found.",
+        )
+
+    if campaign.status != "active":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Only active campaigns "
+                "can be executed."
+            ),
+        )
+
+    campaign_customers = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign_id,
+            CampaignCustomer.organization_id
+            == organization_id,
+            CampaignCustomer.status
+            == "pending",
+        )
+        .all()
+    )
+
+    if not campaign_customers:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "There are no pending "
+                "customers in this campaign."
+            ),
+        )
+
+    created_actions = 0
+    skipped_actions = 0
+
+    for campaign_customer in campaign_customers:
+        existing_action = (
+            db.query(RetentionAction)
+            .filter(
+                RetentionAction.organization_id
+                == organization_id,
+                RetentionAction.customer_id
+                == campaign_customer.customer_id,
+                RetentionAction.action_type
+                == campaign.action_type,
+                RetentionAction.status
+                == "pending",
+            )
+            .first()
+        )
+
+        if existing_action:
+            skipped_actions += 1
+            continue
+
+        action = RetentionAction(
+            organization_id=
+                organization_id,
+            customer_id=
+                campaign_customer.customer_id,
+            action_type=
+                campaign.action_type,
+            status="pending",
+            recommendation=(
+                campaign.description
+            ),
+        )
+
+        db.add(action)
+
+        campaign_customer.status = (
+            "action_created"
+        )
+
+        created_actions += 1
+
+    db.commit()
+
+    return {
+        "campaign_id": str(
+            campaign_id
+        ),
+        "created_actions":
+            created_actions,
+        "skipped_actions":
+            skipped_actions,
+        "message": (
+            "Campaign execution completed. "
+            "Created retention actions for "
+            "targeted customers."
+        ),
+    }
