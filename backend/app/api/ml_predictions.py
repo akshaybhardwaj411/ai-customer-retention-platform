@@ -111,6 +111,7 @@ def predict_customer(
         customer_id=customer_id,
         churn_probability=probability,
         risk_level=risk_level,
+        customer_features=customer_data,
     )
 
     db.add(prediction)
