@@ -1,23 +1,339 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import {
+  getMLStatus,
+  MLStatus,
+} from "../../lib/ml-status";
+
+
 export default function AIActionsPage() {
+  const [status, setStatus] =
+    useState<MLStatus | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+
+  useEffect(() => {
+    async function loadStatus() {
+      try {
+        const result =
+          await getMLStatus();
+
+        setStatus(result);
+
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load AI status.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadStatus();
+  }, []);
+
+
   return (
-    <main>
-      <h1>AI Actions</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        padding: "32px 24px",
+      }}
+    >
+      <section
+        style={{
+          maxWidth: "1100px",
+          margin: "0 auto",
+        }}
+      >
+        <Link href="/dashboard">
+          ← Dashboard
+        </Link>
 
-      <p>
-        Review AI-generated recommendations for customer retention.
-      </p>
+        <h1>
+          AI Actions
+        </h1>
 
-      <section>
-        <h2>Recommended Actions</h2>
+        <p
+          style={{
+            color: "#64748b",
+          }}
+        >
+          Manage AI-powered customer
+          retention capabilities.
+        </p>
 
-        <p>No AI recommendations available yet.</p>
-      </section>
 
-      <section>
-        <h2>Pending Approval</h2>
+        {loading && (
+          <p>
+            Checking AI model status...
+          </p>
+        )}
 
-        <p>No actions waiting for approval.</p>
+
+        {error && (
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "14px 16px",
+              background: "#fef2f2",
+              border:
+                "1px solid #fecaca",
+              borderRadius: "8px",
+              color: "#991b1b",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+
+        {status && (
+          <section
+            style={{
+              marginTop: "24px",
+              padding: "24px",
+              background: "white",
+              border:
+                "1px solid #e2e8f0",
+              borderRadius: "12px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems: "center",
+                gap: "16px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    marginTop: 0,
+                  }}
+                >
+                  Churn Prediction Model
+                </h2>
+
+                <p
+                  style={{
+                    color:
+                      "#64748b",
+                  }}
+                >
+                  {status.message}
+                </p>
+              </div>
+
+              <span
+                style={{
+                  padding:
+                    "8px 12px",
+                  borderRadius: "999px",
+                  background:
+                    status.model_available
+                      ? "#dcfce7"
+                      : "#fef3c7",
+                  color:
+                    status.model_available
+                      ? "#166534"
+                      : "#92400e",
+                  fontWeight: 700,
+                }}
+              >
+                {status.model_available
+                  ? "Ready"
+                  : "Not Ready"}
+              </span>
+            </div>
+
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: "16px",
+                marginTop: "20px",
+              }}
+            >
+              <StatusCard
+                title="Model"
+                value={
+                  status.model_available
+                    ? "Available"
+                    : "Unavailable"
+                }
+              />
+
+              <StatusCard
+                title="Features"
+                value={
+                  status.features_available
+                    ? "Available"
+                    : "Unavailable"
+                }
+              />
+
+              <StatusCard
+                title="Feature Count"
+                value={
+                  status.feature_count !==
+                  undefined
+                    ? String(
+                        status.feature_count,
+                      )
+                    : "—"
+                }
+              />
+            </div>
+
+
+            {status.model_available && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "16px",
+                  background:
+                    "#f8fafc",
+                  border:
+                    "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                }}
+              >
+                <strong>
+                  ML prediction is ready.
+                </strong>
+
+                <p
+                  style={{
+                    marginBottom: 0,
+                    color:
+                      "#64748b",
+                  }}
+                >
+                  Open a customer in
+                  Customer 360 to run
+                  a churn prediction.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "16px",
+            marginTop: "24px",
+          }}
+        >
+          <FeatureCard
+            title="Churn Prediction"
+            description="Estimate the probability that a customer may churn."
+          />
+
+          <FeatureCard
+            title="Risk Detection"
+            description="Classify customers into actionable risk levels."
+          />
+
+          <FeatureCard
+            title="Next Best Action"
+            description="Recommend retention actions based on customer context."
+          />
+        </section>
       </section>
     </main>
+  );
+}
+
+
+function StatusCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        padding: "16px",
+        background:
+          "#f8fafc",
+        border:
+          "1px solid #e2e8f0",
+        borderRadius: "8px",
+      }}
+    >
+      <p
+        style={{
+          marginTop: 0,
+          color: "#64748b",
+        }}
+      >
+        {title}
+      </p>
+
+      <strong>
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+
+function FeatureCard({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <article
+      style={{
+        padding: "20px",
+        background: "white",
+        border:
+          "1px solid #e2e8f0",
+        borderRadius: "12px",
+      }}
+    >
+      <h2
+        style={{
+          marginTop: 0,
+          fontSize: "18px",
+        }}
+      >
+        {title}
+      </h2>
+
+      <p
+        style={{
+          color: "#64748b",
+          lineHeight: 1.6,
+        }}
+      >
+        {description}
+      </p>
+    </article>
   );
 }
