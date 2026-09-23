@@ -3,6 +3,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
+
 MODEL_PATH = Path(
     "ml/models/churn_model.joblib"
 )
@@ -30,17 +31,10 @@ def load_feature_columns():
     )
 
 
-def predict_customer_churn(
-    model,
+def prepare_prediction_features(
     customer_data: dict,
-) -> tuple[float, str]:
-    feature_columns = load_feature_columns()
-
-    if feature_columns is None:
-        raise FileNotFoundError(
-            "Trained feature columns were not found."
-        )
-
+    feature_columns: list[str],
+) -> pd.DataFrame:
     dataframe = pd.DataFrame(
         [customer_data]
     )
@@ -55,9 +49,32 @@ def predict_customer_churn(
         fill_value=0,
     )
 
+    return dataframe
+
+
+def predict_customer_churn(
+    model,
+    customer_data: dict,
+) -> tuple[float, str]:
+    feature_columns = (
+        load_feature_columns()
+    )
+
+    if feature_columns is None:
+        raise FileNotFoundError(
+            "Trained feature columns were not found."
+        )
+
+    features = (
+        prepare_prediction_features(
+            customer_data=customer_data,
+            feature_columns=feature_columns,
+        )
+    )
+
     probability = float(
         model.predict_proba(
-            dataframe
+            features
         )[0][1]
     )
 
