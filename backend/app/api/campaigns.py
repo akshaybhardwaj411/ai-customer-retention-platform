@@ -1,8 +1,9 @@
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -69,18 +70,163 @@ class CampaignCreate(BaseModel):
     description: Optional[str] = None
     action_type: str
     target_segment: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+    @field_validator(
+        "name",
+        "action_type",
+        mode="before",
+    )
+    @classmethod
+    def validate_required_strings(
+        cls,
+        value,
+    ):
+        if value is None:
+            return value
+
+        if not isinstance(value, str):
+            raise ValueError(
+                "Value must be a string."
+            )
+
+        value = value.strip()
+
+        if not value:
+            raise ValueError(
+                "Value cannot be empty."
+            )
+
+        return value
+
+    @field_validator(
+        "description",
+        mode="before",
+    )
+    @classmethod
+    def normalize_description(
+        cls,
+        value,
+    ):
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError(
+                "Description must be a string."
+            )
+
+        value = value.strip()
+
+        return value or None
+
+    @field_validator(
+        "target_segment",
+        mode="before",
+    )
+    @classmethod
+    def normalize_segment(
+        cls,
+        value,
+    ):
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError(
+                "Target segment must be a string."
+            )
+
+        value = value.strip().lower()
+
+        return value or None
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if (
+            self.start_date
+            and self.end_date
+            and self.end_date
+            < self.start_date
+        ):
+            raise ValueError(
+                "End date cannot be earlier than start date."
+            )
+
+        return self
 
 
 class CampaignStatusUpdate(BaseModel):
     organization_id: UUID
     status: str
 
+    @field_validator(
+        "status",
+        mode="before",
+    )
+    @classmethod
+    def normalize_status(
+        cls,
+        value,
+    ):
+        if not isinstance(value, str):
+            raise ValueError(
+                "Status must be a string."
+            )
+
+        value = value.strip().lower()
+
+        if not value:
+            raise ValueError(
+                "Status cannot be empty."
+            )
+
+        return value
+
 
 class CampaignTargetRequest(BaseModel):
     organization_id: UUID
     segment: str
+
+    @field_validator(
+        "segment",
+        mode="before",
+    )
+    @classmethod
+    def normalize_segment(
+        cls,
+        value,
+    ):
+        if not isinstance(value, str):
+            raise ValueError(
+                "Segment must be a string."
+            )
+
+        value = value.strip().lower()
+
+        if not value:
+            raise ValueError(
+                "Segment cannot be empty."
+            )
+
+        return value
+
+
+def _normalize_datetime(
+    value: Optional[datetime],
+) -> Optional[datetime]:
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        return value.replace(
+            tzinfo=timezone.utc
+        )
+
+    return value.astimezone(
+        timezone.utc
+    )
 
 
 def _serialize_campaign(
@@ -174,7 +320,7 @@ def create_campaign(
         )
 
     target_segment = (
-        data.target_segment.strip().lower()
+        data.target_segment
         if data.target_segment
         else None
     )
@@ -195,6 +341,27 @@ def create_campaign(
             ),
         )
 
+    start_date = _normalize_datetime(
+        data.start_date
+    )
+
+    end_date = _normalize_datetime(
+        data.end_date
+    )
+
+    if (
+        start_date
+        and end_date
+        and end_date < start_date
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Campaign end date cannot "
+                "be earlier than start date."
+            ),
+        )
+
     campaign = Campaign(
         organization_id=data.organization_id,
         name=name,
@@ -202,15 +369,17 @@ def create_campaign(
         action_type=action_type,
         target_segment=target_segment,
         status="draft",
-        start_date=data.start_date,
-        end_date=data.end_date,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     db.add(campaign)
     db.commit()
     db.refresh(campaign)
 
-    return _serialize_campaign(campaign)
+    return _serialize_campaign(
+        campaign
+    )
 
 
 @router.get("/")
@@ -458,9 +627,7 @@ def update_campaign_status(
 ):
     process_scheduled_campaigns(db)
 
-    requested_status = (
-        data.status.strip().lower()
-    )
+    requested_status = data.status
 
     if requested_status not in ALLOWED_STATUSES:
         raise HTTPException(
@@ -517,10 +684,18 @@ def update_campaign_status(
                 ),
             )
 
-        if (
+        start_date = _normalize_datetime(
+            campaign.start_date
+        )
+
+        end_date = _normalize_datetime(
             campaign.end_date
-            and campaign.end_date
-            < campaign.start_date
+        )
+
+        if (
+            end_date
+            and start_date
+            and end_date < start_date
         ):
             raise HTTPException(
                 status_code=400,
@@ -610,9 +785,7 @@ def target_campaign_customers(
             ),
         )
 
-    segment = (
-        data.segment.strip().lower()
-    )
+    segment = data.segment
 
     if segment not in ALLOWED_SEGMENTS:
         raise HTTPException(
@@ -871,9 +1044,7 @@ def execute_campaign(
             customer_id=campaign_customer.customer_id,
             action_type=campaign.action_type,
             status="pending",
-            recommendation=(
-                campaign.description
-            ),
+            recommendation=campaign.description,
         )
 
         db.add(action)
