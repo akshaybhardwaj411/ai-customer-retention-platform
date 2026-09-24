@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.action_outcome import ActionOutcome
 from app.models.campaign import Campaign
 from app.models.campaign_customer import CampaignCustomer
 from app.models.customer import Customer
@@ -70,6 +71,27 @@ ALLOWED_SEGMENTS = {
     "medium_risk",
     "low_risk",
     "all_customers",
+}
+
+
+ALLOWED_TRANSITIONS = {
+    "draft": {
+        "scheduled",
+        "active",
+    },
+    "scheduled": {
+        "active",
+        "paused",
+    },
+    "active": {
+        "paused",
+        "completed",
+    },
+    "paused": {
+        "active",
+        "completed",
+    },
+    "completed": set(),
 }
 
 
@@ -329,8 +351,7 @@ def get_campaign_analytics(
             == campaign_id,
             CampaignCustomer.organization_id
             == organization_id,
-            CampaignCustomer.status
-            .in_(
+            CampaignCustomer.status.in_(
                 [
                     "executed",
                     "outcome_recorded",
@@ -403,32 +424,6 @@ def get_campaign_analytics(
             == "unknown",
         )
         .count()
-    )
-
-    revenue_saved = (
-        db.query(
-            func.coalesce(
-                func.sum(
-                    CampaignCustomer.customer_id
-                ),
-                0,
-            )
-        )
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-        )
-        .scalar()
-    )
-
-    # Revenue is stored on ActionOutcome,
-    # not CampaignCustomer.
-    # Calculate it from the linked
-    # retention actions.
-    from app.models.action_outcome import (
-        ActionOutcome,
     )
 
     campaign_action_ids = (
@@ -534,9 +529,11 @@ def update_campaign_status(
     data: CampaignStatusUpdate,
     db: Session = Depends(get_db),
 ):
-    status = data.status.strip().lower()
+    requested_status = (
+        data.status.strip().lower()
+    )
 
-    if status not in ALLOWED_STATUSES:
+    if requested_status not in ALLOWED_STATUSES:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -563,7 +560,27 @@ def update_campaign_status(
             detail="Campaign not found.",
         )
 
-    if status == "active":
+    current_status = (
+        campaign.status
+    )
+
+    if (
+        requested_status
+        not in ALLOWED_TRANSITIONS.get(
+            current_status,
+            set(),
+        )
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Campaign cannot move "
+                f"from '{current_status}' "
+                f"to '{requested_status}'."
+            ),
+        )
+
+    if requested_status == "active":
         customer_count = (
             db.query(CampaignCustomer)
             .filter(
@@ -584,7 +601,9 @@ def update_campaign_status(
                 ),
             )
 
-    campaign.status = status
+    campaign.status = (
+        requested_status
+    )
 
     db.commit()
     db.refresh(campaign)
