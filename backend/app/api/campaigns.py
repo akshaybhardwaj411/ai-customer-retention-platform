@@ -1,8 +1,8 @@
-from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -13,47 +13,15 @@ from app.models.campaign_customer import CampaignCustomer
 from app.models.customer import Customer
 from app.models.prediction import Prediction
 from app.models.retention_action import RetentionAction
+from app.services.campaign_scheduler_service import (
+    process_scheduled_campaigns,
+)
 
 
 router = APIRouter(
     prefix="/campaigns",
-    tags=["Campaigns"],
+    tags=["campaigns"],
 )
-
-
-class CampaignCreate(BaseModel):
-    organization_id: UUID
-    name: str = Field(
-        min_length=2,
-        max_length=255,
-    )
-    description: str | None = None
-    action_type: str = Field(
-        min_length=2,
-        max_length=100,
-    )
-    target_segment: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-    start_date: datetime | None = None
-    end_date: datetime | None = None
-
-
-class CampaignStatusUpdate(BaseModel):
-    organization_id: UUID
-    status: str = Field(
-        min_length=2,
-        max_length=50,
-    )
-
-
-class CampaignTargetRequest(BaseModel):
-    organization_id: UUID
-    segment: str = Field(
-        min_length=2,
-        max_length=100,
-    )
 
 
 ALLOWED_STATUSES = {
@@ -95,11 +63,31 @@ ALLOWED_TRANSITIONS = {
 }
 
 
+class CampaignCreate(BaseModel):
+    organization_id: UUID
+    name: str
+    description: Optional[str] = None
+    action_type: str
+    target_segment: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class CampaignStatusUpdate(BaseModel):
+    organization_id: UUID
+    status: str
+
+
+class CampaignTargetRequest(BaseModel):
+    organization_id: UUID
+    segment: str
+
+
 def _serialize_campaign(
     campaign: Campaign,
-    customer_count: int | None = None,
+    customer_count: Optional[int] = None,
 ):
-    response = {
+    data = {
         "id": str(campaign.id),
         "organization_id": str(
             campaign.organization_id
@@ -107,56 +95,61 @@ def _serialize_campaign(
         "name": campaign.name,
         "description": campaign.description,
         "action_type": campaign.action_type,
-        "target_segment":
-            campaign.target_segment,
+        "target_segment": campaign.target_segment,
         "status": campaign.status,
-        "start_date": campaign.start_date,
-        "end_date": campaign.end_date,
-        "created_at": campaign.created_at,
+        "start_date": (
+            campaign.start_date.isoformat()
+            if campaign.start_date
+            else None
+        ),
+        "end_date": (
+            campaign.end_date.isoformat()
+            if campaign.end_date
+            else None
+        ),
+        "created_at": (
+            campaign.created_at.isoformat()
+            if campaign.created_at
+            else None
+        ),
     }
 
     if customer_count is not None:
-        response["customer_count"] = (
-            customer_count
-        )
+        data["customer_count"] = customer_count
 
-    return response
+    return data
 
 
 def _get_latest_predictions(
-    organization_id: UUID,
     db: Session,
+    organization_id: UUID,
 ):
     predictions = (
         db.query(Prediction)
         .filter(
             Prediction.organization_id
-            == organization_id
+            == organization_id,
+        )
+        .order_by(
+            Prediction.customer_id,
+            Prediction.created_at.desc(),
         )
         .all()
     )
 
-    prediction_map = {}
+    latest_predictions = {}
 
     for prediction in predictions:
         customer_id = str(
             prediction.customer_id
         )
 
-        existing = prediction_map.get(
-            customer_id
-        )
-
-        if (
-            existing is None
-            or prediction.created_at
-            > existing.created_at
-        ):
-            prediction_map[
+        if customer_id not in latest_predictions:
+            latest_predictions[
                 customer_id
             ] = prediction
 
-    return prediction_map
+    return latest_predictions
 
 
 @router.post("/")
@@ -165,7 +158,6 @@ def create_campaign(
     db: Session = Depends(get_db),
 ):
     name = data.name.strip()
-    action_type = data.action_type.strip()
 
     if not name:
         raise HTTPException(
@@ -173,23 +165,33 @@ def create_campaign(
             detail="Campaign name is required.",
         )
 
+    action_type = data.action_type.strip()
+
     if not action_type:
         raise HTTPException(
             status_code=400,
             detail="Action type is required.",
         )
 
+    target_segment = (
+        data.target_segment.strip().lower()
+        if data.target_segment
+        else None
+    )
+
     if (
-        data.start_date
-        and data.end_date
-        and data.end_date
-        < data.start_date
+        target_segment
+        and target_segment
+        not in ALLOWED_SEGMENTS
     ):
         raise HTTPException(
             status_code=400,
             detail=(
-                "End date cannot be earlier "
-                "than start date."
+                "Invalid target segment. "
+                "Allowed values are: "
+                + ", ".join(
+                    sorted(ALLOWED_SEGMENTS)
+                )
             ),
         )
 
@@ -198,7 +200,7 @@ def create_campaign(
         name=name,
         description=data.description,
         action_type=action_type,
-        target_segment=data.target_segment,
+        target_segment=target_segment,
         status="draft",
         start_date=data.start_date,
         end_date=data.end_date,
@@ -208,9 +210,7 @@ def create_campaign(
     db.commit()
     db.refresh(campaign)
 
-    return _serialize_campaign(
-        campaign
-    )
+    return _serialize_campaign(campaign)
 
 
 @router.get("/")
@@ -218,11 +218,13 @@ def list_campaigns(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
+    process_scheduled_campaigns(db)
+
     campaigns = (
         db.query(Campaign)
         .filter(
             Campaign.organization_id
-            == organization_id
+            == organization_id,
         )
         .order_by(
             Campaign.created_at.desc()
@@ -230,7 +232,7 @@ def list_campaigns(
         .all()
     )
 
-    response = []
+    results = []
 
     for campaign in campaigns:
         customer_count = (
@@ -244,14 +246,14 @@ def list_campaigns(
             .count()
         )
 
-        response.append(
+        results.append(
             _serialize_campaign(
                 campaign,
-                customer_count,
+                customer_count=customer_count,
             )
         )
 
-    return response
+    return results
 
 
 @router.get("/{campaign_id}")
@@ -260,6 +262,8 @@ def get_campaign(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
+    process_scheduled_campaigns(db)
+
     campaign = (
         db.query(Campaign)
         .filter(
@@ -280,7 +284,7 @@ def get_campaign(
         db.query(CampaignCustomer)
         .filter(
             CampaignCustomer.campaign_id
-            == campaign_id,
+            == campaign.id,
             CampaignCustomer.organization_id
             == organization_id,
         )
@@ -289,7 +293,7 @@ def get_campaign(
 
     return _serialize_campaign(
         campaign,
-        customer_count,
+        customer_count=customer_count,
     )
 
 
@@ -301,6 +305,8 @@ def get_campaign_analytics(
     organization_id: UUID,
     db: Session = Depends(get_db),
 ):
+    process_scheduled_campaigns(db)
+
     campaign = (
         db.query(Campaign)
         .filter(
@@ -317,138 +323,86 @@ def get_campaign_analytics(
             detail="Campaign not found.",
         )
 
-    base_query = (
+    campaign_customers = (
         db.query(CampaignCustomer)
         .filter(
             CampaignCustomer.campaign_id
             == campaign_id,
             CampaignCustomer.organization_id
             == organization_id,
-        )
-    )
-
-    targeted_customers = (
-        base_query.count()
-    )
-
-    actions_created = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.retention_action_id
-            .isnot(None),
-        )
-        .count()
-    )
-
-    actions_executed = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.status.in_(
-                [
-                    "executed",
-                    "outcome_recorded",
-                ]
-            ),
-        )
-        .count()
-    )
-
-    outcomes_recorded = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.outcome
-            .isnot(None),
-        )
-        .count()
-    )
-
-    saved = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.outcome
-            == "saved",
-        )
-        .count()
-    )
-
-    not_saved = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.outcome
-            == "not_saved",
-        )
-        .count()
-    )
-
-    no_response = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.outcome
-            == "no_response",
-        )
-        .count()
-    )
-
-    unknown = (
-        db.query(CampaignCustomer)
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.outcome
-            == "unknown",
-        )
-        .count()
-    )
-
-    campaign_action_ids = (
-        db.query(
-            CampaignCustomer.retention_action_id
-        )
-        .filter(
-            CampaignCustomer.campaign_id
-            == campaign_id,
-            CampaignCustomer.organization_id
-            == organization_id,
-            CampaignCustomer.retention_action_id
-            .isnot(None),
         )
         .all()
     )
 
+    targeted_customers = len(
+        campaign_customers
+    )
+
+    actions_created = sum(
+        1
+        for item in campaign_customers
+        if item.retention_action_id
+    )
+
+    actions_executed = sum(
+        1
+        for item in campaign_customers
+        if item.status in {
+            "executed",
+            "outcome_recorded",
+        }
+    )
+
+    outcomes_recorded = sum(
+        1
+        for item in campaign_customers
+        if item.outcome
+    )
+
+    saved = sum(
+        1
+        for item in campaign_customers
+        if item.outcome == "saved"
+    )
+
+    not_saved = sum(
+        1
+        for item in campaign_customers
+        if item.outcome == "not_saved"
+    )
+
+    no_response = sum(
+        1
+        for item in campaign_customers
+        if item.outcome == "no_response"
+    )
+
+    unknown = sum(
+        1
+        for item in campaign_customers
+        if item.outcome == "unknown"
+    )
+
+    resolved_outcomes = (
+        saved + not_saved
+    )
+
+    save_rate = (
+        (saved / resolved_outcomes) * 100
+        if resolved_outcomes > 0
+        else 0
+    )
+
     action_ids = [
-        row[0]
-        for row in campaign_action_ids
-        if row[0] is not None
+        item.retention_action_id
+        for item in campaign_customers
+        if item.retention_action_id
     ]
 
+    revenue_saved = 0
+
     if action_ids:
-        revenue_saved = (
+        revenue_result = (
             db.query(
                 func.coalesce(
                     func.sum(
@@ -468,56 +422,29 @@ def get_campaign_analytics(
             )
             .scalar()
         )
-    else:
-        revenue_saved = 0
 
-    resolved_outcomes = (
-        saved + not_saved
-    )
-
-    save_rate = (
-        saved / resolved_outcomes
-        if resolved_outcomes > 0
-        else 0
-    )
+        revenue_saved = float(
+            revenue_result or 0
+        )
 
     return {
         "campaign_id": str(
             campaign.id
         ),
-        "campaign_name":
-            campaign.name,
-        "status":
-            campaign.status,
-        "target_segment":
-            campaign.target_segment,
-        "targeted_customers":
-            targeted_customers,
-        "actions_created":
-            actions_created,
-        "actions_executed":
-            actions_executed,
-        "outcomes_recorded":
-            outcomes_recorded,
-        "saved":
-            saved,
-        "not_saved":
-            not_saved,
-        "no_response":
-            no_response,
-        "unknown":
-            unknown,
-        "resolved_outcomes":
-            resolved_outcomes,
-        "save_rate":
-            round(
-                save_rate,
-                4,
-            ),
-        "revenue_saved":
-            float(
-                revenue_saved or 0
-            ),
+        "campaign_name": campaign.name,
+        "status": campaign.status,
+        "target_segment": campaign.target_segment,
+        "targeted_customers": targeted_customers,
+        "actions_created": actions_created,
+        "actions_executed": actions_executed,
+        "outcomes_recorded": outcomes_recorded,
+        "saved": saved,
+        "not_saved": not_saved,
+        "no_response": no_response,
+        "unknown": unknown,
+        "resolved_outcomes": resolved_outcomes,
+        "save_rate": save_rate,
+        "revenue_saved": revenue_saved,
     }
 
 
@@ -529,6 +456,8 @@ def update_campaign_status(
     data: CampaignStatusUpdate,
     db: Session = Depends(get_db),
 ):
+    process_scheduled_campaigns(db)
+
     requested_status = (
         data.status.strip().lower()
     )
@@ -560,9 +489,7 @@ def update_campaign_status(
             detail="Campaign not found.",
         )
 
-    current_status = (
-        campaign.status
-    )
+    current_status = campaign.status
 
     if (
         requested_status
@@ -579,6 +506,29 @@ def update_campaign_status(
                 f"to '{requested_status}'."
             ),
         )
+
+    if requested_status == "scheduled":
+        if not campaign.start_date:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "A start date is required "
+                    "before scheduling a campaign."
+                ),
+            )
+
+        if (
+            campaign.end_date
+            and campaign.end_date
+            < campaign.start_date
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Campaign end date cannot "
+                    "be earlier than start date."
+                ),
+            )
 
     if requested_status == "active":
         customer_count = (
@@ -601,15 +551,25 @@ def update_campaign_status(
                 ),
             )
 
-    campaign.status = (
-        requested_status
-    )
+    campaign.status = requested_status
 
     db.commit()
     db.refresh(campaign)
 
+    customer_count = (
+        db.query(CampaignCustomer)
+        .filter(
+            CampaignCustomer.campaign_id
+            == campaign.id,
+            CampaignCustomer.organization_id
+            == data.organization_id,
+        )
+        .count()
+    )
+
     return _serialize_campaign(
-        campaign
+        campaign,
+        customer_count=customer_count,
     )
 
 
@@ -621,24 +581,6 @@ def target_campaign_customers(
     data: CampaignTargetRequest,
     db: Session = Depends(get_db),
 ):
-    segment = (
-        data.segment
-        .strip()
-        .lower()
-    )
-
-    if segment not in ALLOWED_SEGMENTS:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Invalid target segment. "
-                "Allowed values are: "
-                "critical_risk, high_risk, "
-                "medium_risk, low_risk, "
-                "all_customers."
-            ),
-        )
-
     campaign = (
         db.query(Campaign)
         .filter(
@@ -663,65 +605,52 @@ def target_campaign_customers(
             status_code=400,
             detail=(
                 "Customers can only be targeted "
-                "while the campaign is draft "
+                "while a campaign is draft "
                 "or scheduled."
             ),
         )
+
+    segment = (
+        data.segment.strip().lower()
+    )
+
+    if segment not in ALLOWED_SEGMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid target segment."
+            ),
+        )
+
+    latest_predictions = (
+        _get_latest_predictions(
+            db,
+            data.organization_id,
+        )
+    )
 
     customers = (
         db.query(Customer)
         .filter(
             Customer.organization_id
-            == data.organization_id
+            == data.organization_id,
         )
         .all()
-    )
-
-    prediction_map = (
-        _get_latest_predictions(
-            organization_id=
-                data.organization_id,
-            db=db,
-        )
     )
 
     added = 0
     skipped = 0
 
     for customer in customers:
-        prediction = prediction_map.get(
-            str(customer.id)
-        )
-
-        risk_level = (
-            prediction.risk_level
-            if prediction
-            else None
-        )
-
-        if segment == "all_customers":
-            matches = True
-        else:
-            matches = (
-                risk_level
-                == segment.replace(
-                    "_risk",
-                    "",
-                )
-            )
-
-        if not matches:
-            continue
-
         existing = (
             db.query(CampaignCustomer)
             .filter(
+                CampaignCustomer.organization_id
+                == data.organization_id,
                 CampaignCustomer.campaign_id
                 == campaign_id,
                 CampaignCustomer.customer_id
                 == customer.id,
-                CampaignCustomer.organization_id
-                == data.organization_id,
             )
             .first()
         )
@@ -730,9 +659,30 @@ def target_campaign_customers(
             skipped += 1
             continue
 
+        should_target = False
+
+        if segment == "all_customers":
+            should_target = True
+        else:
+            prediction = latest_predictions.get(
+                str(customer.id)
+            )
+
+            if prediction:
+                risk_level = (
+                    prediction.risk_level
+                    or ""
+                ).lower()
+
+                should_target = (
+                    risk_level == segment
+                )
+
+        if not should_target:
+            continue
+
         campaign_customer = CampaignCustomer(
-            organization_id=
-                data.organization_id,
+            organization_id=data.organization_id,
             campaign_id=campaign_id,
             customer_id=customer.id,
             retention_action_id=None,
@@ -755,8 +705,8 @@ def target_campaign_customers(
         "added": added,
         "skipped": skipped,
         "message": (
-            "Campaign customers "
-            "targeted successfully."
+            f"{added} customer(s) added "
+            "to the campaign."
         ),
     }
 
@@ -764,7 +714,7 @@ def target_campaign_customers(
 @router.get(
     "/{campaign_id}/customers"
 )
-def list_campaign_customers(
+def get_campaign_customers(
     campaign_id: UUID,
     organization_id: UUID,
     db: Session = Depends(get_db),
@@ -785,79 +735,55 @@ def list_campaign_customers(
             detail="Campaign not found.",
         )
 
-    campaign_customers = (
-        db.query(CampaignCustomer)
+    rows = (
+        db.query(
+            CampaignCustomer,
+            Customer,
+        )
+        .join(
+            Customer,
+            Customer.id
+            == CampaignCustomer.customer_id,
+        )
         .filter(
             CampaignCustomer.campaign_id
             == campaign_id,
             CampaignCustomer.organization_id
             == organization_id,
-        )
-        .all()
-    )
-
-    customer_ids = [
-        item.customer_id
-        for item in campaign_customers
-    ]
-
-    customers = (
-        db.query(Customer)
-        .filter(
             Customer.organization_id
             == organization_id,
-            Customer.id.in_(
-                customer_ids
-            ),
+        )
+        .order_by(
+            CampaignCustomer.created_at.desc()
         )
         .all()
-        if customer_ids
-        else []
     )
-
-    customer_map = {
-        str(customer.id): customer
-        for customer in customers
-    }
 
     return [
         {
-            "id": str(item.id),
+            "id": str(row.id),
             "campaign_id": str(
-                item.campaign_id
+                row.campaign_id
             ),
             "customer_id": str(
-                item.customer_id
+                row.customer_id
             ),
             "retention_action_id": (
-                str(
-                    item.retention_action_id
-                )
-                if item.retention_action_id
+                str(row.retention_action_id)
+                if row.retention_action_id
                 else None
             ),
-            "customer_name": (
-                customer_map[
-                    str(item.customer_id)
-                ].name
-                if str(item.customer_id)
-                in customer_map
-                else "Unknown customer"
-            ),
-            "customer_email": (
-                customer_map[
-                    str(item.customer_id)
-                ].email
-                if str(item.customer_id)
-                in customer_map
+            "customer_name": customer.name,
+            "customer_email": customer.email,
+            "status": row.status,
+            "outcome": row.outcome,
+            "created_at": (
+                row.created_at.isoformat()
+                if row.created_at
                 else None
             ),
-            "status": item.status,
-            "outcome": item.outcome,
-            "created_at":
-                item.created_at,
         }
-        for item in campaign_customers
+        for row, customer in rows
     ]
 
 
@@ -907,15 +833,6 @@ def execute_campaign(
         .all()
     )
 
-    if not campaign_customers:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "There are no pending "
-                "customers in this campaign."
-            ),
-        )
-
     created_actions = 0
     skipped_actions = 0
 
@@ -932,6 +849,9 @@ def execute_campaign(
                 RetentionAction.status
                 == "pending",
             )
+            .order_by(
+                RetentionAction.created_at.desc()
+            )
             .first()
         )
 
@@ -942,16 +862,14 @@ def execute_campaign(
             campaign_customer.status = (
                 "action_created"
             )
+
             skipped_actions += 1
             continue
 
         action = RetentionAction(
-            organization_id=
-                organization_id,
-            customer_id=
-                campaign_customer.customer_id,
-            action_type=
-                campaign.action_type,
+            organization_id=organization_id,
+            customer_id=campaign_customer.customer_id,
+            action_type=campaign.action_type,
             status="pending",
             recommendation=(
                 campaign.description
@@ -964,7 +882,6 @@ def execute_campaign(
         campaign_customer.retention_action_id = (
             action.id
         )
-
         campaign_customer.status = (
             "action_created"
         )
@@ -977,13 +894,10 @@ def execute_campaign(
         "campaign_id": str(
             campaign_id
         ),
-        "created_actions":
-            created_actions,
-        "skipped_actions":
-            skipped_actions,
+        "created_actions": created_actions,
+        "skipped_actions": skipped_actions,
         "message": (
-            "Campaign execution completed. "
-            "Created retention actions for "
-            "targeted customers."
+            f"{created_actions} retention "
+            "action(s) created."
         ),
     }
